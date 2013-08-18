@@ -33,7 +33,8 @@
 
 (defclass variable-binding-entry-form (walked-form binding-entry-mixin)
   ((value :accessor value-of :initarg :value)
-   (specialp :accessor special-binding? :initform nil)))
+   (specialp :accessor special-binding? :initform nil)
+   (type :accessor type-spec :initarg :type-spec)))
 
 (defunwalker-handler variable-binding-entry-form (name value)
   (if value

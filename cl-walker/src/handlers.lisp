@@ -201,10 +201,10 @@
 
 (defun parse-var-binding (binding parent env)
   (with-current-form binding
-    (destructuring-bind (var &optional (initial-value nil init-set-p))
+    (destructuring-bind (var &optional (initial-value nil init-set-p) type-spec)
         (ensure-list binding)
       (with-form-object (bind 'variable-binding-entry-form parent
-                              :name var :value nil)
+                              :name var :value nil :type-spec type-spec)
         (when init-set-p
           (setf (value-of bind) (walk-form initial-value bind env)))
         bind))))
