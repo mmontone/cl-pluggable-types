@@ -1,0 +1,15 @@
+This is the Common Lisp code walker that was originally written by
+Marco Baringer in his Arnesi library. With his permission it was
+factored out into a standalone cl-walker library and further developed
+by Attila Lendvai. Also contains important contribution to the
+environment handling by Berki Lukács Tamás. Please consult the repo
+history for more details.
+
+This code walker parses a lisp sexp into CLOS objects which is very
+convenient representation to do various code transformations using
+generic methods.
+
+There's also an unwalker provided that can convert back the CLOS
+instances into lisp sexps.
+
+Home: http://common-lisp.net/project/cl-walker/
