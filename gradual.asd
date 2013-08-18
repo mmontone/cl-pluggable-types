@@ -5,7 +5,7 @@
   
 (in-package :gradual-system)
 
-(defsystem gradual
+(defsystem :gradual
   :name "gradual"
   :author "Mariano Montone <marianomontone@gmail.com>"
   :version "0.1"
@@ -39,4 +39,4 @@ OTHER DEALINGS IN THE SOFTWARE."
   ((:file "package")
    (:file "gradual"))
   :serial t
-  :depends-on (:hu.dwim.walker :anaphora :alexandria))
+  :depends-on (:cl-walker :anaphora :alexandria))

@@ -2,7 +2,12 @@
 
 (defparameter *var-types* (make-hash-table :test #'equalp))
 (defparameter *fun-types* (make-hash-table :test #'equalp))
-(defparameter *environment* (make-hash-table :test #'equalp))
+(defparameter *fun-sources* (make-hash-table :test #'equalp))
+(defparameter *type-environment* (make-hash-table :test #'equalp))
+(defparameter *walker-environment* (make-walk-environment))
+
+;;(defmacro get-walker-template-internal (x)
+;;  `(get ,x 'walker-template))
 
 (defun set-var-type (var type)
   (setf (gethash var *var-types*) type))
@@ -20,6 +25,12 @@
    (gethash fun-name *fun-types*)
    '(list :required-vars any
      :return any)))
+
+(defun set-fun-source (fun-name source)
+  (setf (gethash fun-name *fun-sources*) source))
+
+(defun fun-source (fun-name)
+  (gethash fun-name *fun-sources*))
 
 (defun gradual-type-error ()
   (error "Type error"))
@@ -56,11 +67,11 @@
      (check-gradual-type ,value (var-type ',var))
      (setq ,var ,value)))
 
-(defun parse-gradual-lambda-list (lambda-list &key (normalize t)
-				  allow-specializers
-				  (normalize-optional normalize)
-				  (normalize-keyword normalize)
-				  (normalize-auxilary normalize))
+(defun parse-typed-lambda-list (lambda-list &key (normalize t)
+					      allow-specializers
+					      (normalize-optional normalize)
+					      (normalize-keyword normalize)
+					      (normalize-auxilary normalize))
   "Parses a gradual lambda-list, returning as multiple values:
 
 1. Required parameters.
@@ -215,7 +226,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 #+nil(defmacro $defun (name args return-type &body body)
   (multiple-value-bind (required-vars-spec)
-      (parse-gradual-lambda-list args)
+      (parse-typed-lambda-list args)
     (let ((required-types (mapcar #'second required-vars-spec))
 	  (required-vars (mapcar #'first required-vars-spec)))
       `(progn
@@ -224,20 +235,76 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			     :return ',return-type))
 	 (defun ,name ,required-vars ,@body)))))
 
+(defun extract-type-declarations (declarations)
+  (let* ((function-type-declarations 
+	  (remove-if-not (lambda (x)
+			   (equalp x 'fun-type))
+			 declarations
+			 :key #'caadr))
+	 (var-type-declarations
+	  (remove-if-not (lambda (x)
+			   (equalp x 'var-type))
+			 declarations
+			 :key #'caadr))
+	 (return-type-declaration 
+	  (remove-if-not (lambda (x)
+			     (equalp x 'return-type))
+			 declarations
+			 :key #'caadr))
+	 (other-declarations (set-difference declarations
+					     (append function-type-declarations
+						     var-type-declarations
+						     return-type-declaration))))
+    (values function-type-declarations
+	    var-type-declarations
+	    return-type-declaration
+	    other-declarations)))
+
+#+test(extract-type-declarations '((declare (ignore x))
+			     (declare (var-type x integer))
+			     (declare (fun-type f (integer -> integer)))
+			     (declare (return-type integer))))
+
 (defmacro $defun (name args &body body)
   (multiple-value-bind (remaining-forms declarations doc-string)
       (parse-body body)
-    (let ((function-type-declaration
-	   (find 'function-type declarations :key #'caadr)))
-      `(progn
-	 ,@(when function-type-declaration
-		 `((set-fun-type ',name ',(cadadr function-type-declaration))))
-	 (defun ,name ,args
-	   ,doc-string
-	   ,@(remove 'function-type declarations :key #'caadr)
-	   ,@remaining-forms)))))
+    (multiple-value-bind (function-type-declarations
+			  var-type-declarations
+			  return-type-declaration
+			  other-declarations)
+	(extract-type-declarations declarations)
+      (declare (ignore other-declarations))
+      (when function-type-declarations
+	(warn "~A doesn't make sense here" function-type-declarations))
+      (let* ((return-type (or (and return-type-declaration
+				   (caddr return-type-declaration))
+			      :any))
+	     (args-types (mapcar (lambda (arg)
+				   (aif
+				    (find arg var-type-declarations
+					  :key (compose #'first #'caddr))
+				    (destructuring-bind (_ var-name var-type)
+					it
+				      (declare (ignore _ var-name))
+				      var-type)
+					; else
+				    :any))
+				 var-type-declarations))
+	     (function-signature `(,args-types -> ,return-type)))
+	`(progn
+	   (set-fun-type ',name ',function-signature)
+	   (set-fun-source ',name (walk-form '(progn ,@body)))
+	   (defun ,name ,args
+	     ,doc-string
+	     ,@(remove 'function-type declarations :key #'caadr)
+	     ,@remaining-forms))))))
+
+(defmacro $let (bindings &body)
+  (let ((let-form (walk-form *walker-environment* `(let ,bindings ,@body) 
 
 (defvar *typechecking-enabled* nil)
+
+(defun typecheck ())
 
 (defun call-with-typechecking (enabled-p function)
   (let ((*typechecking-enabled* enabled-p))
@@ -248,3 +315,46 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defmacro with-typechecking (&body body)
   `(call-with-typechecking t (lambda () ,@body)))
+
+(defun make-typing-environment ()
+  (list :var-types nil
+	:fun-types nil))
+
+(defun clone-typing-environment (env)
+  (copy-tree env))
+
+(defun env-fun-type (env fun-name)
+  (assoc fun-name (getf env :fun-types)))
+
+(defun set-env-fun-type (env fun-name type)
+  (let ((new-env (clone-typing-environment env)))
+    (let ((old-type (env-fun-type new-env fun-name)))
+      (when old-type
+	(warn "~A already has type ~A in env ~A" fun-name old-type new-env))
+      (push (cons fun-name type) (getf new-env :fun-types))
+      new-env)))
+
+(defun env-var-type (env var-name)
+  (assoc var-name (getf env :var-types)))
+
+(defun set-env-var-type (env var-name type)
+  (let ((new-env (clone-typing-environment env)))
+    (let ((old-type (env-fun-type new-env var-name)))
+      (when old-type
+	(warn "~A already has type ~A in env ~A" var-name old-type new-env))
+      (push (cons var-name type) (getf new-env :var-types))
+      new-env)))
+
+(defun typecheck-form (form &optional (typing-environment (make-typing-environment)))
+  (let ((walked-form (walk-form form)))
+    (%typecheck-form walked-form typing-environment)))
+
+(defmethod %typecheck-form ((form progn-form) typing-environment)
+  (loop for body-form in (body-of form)
+       do
+       (%typecheck-form body-form typing-environment)))
+
+(defmethod %typecheck-form ((form let-form) typing-environment)
+  (let ((bindings (bindings-of form)))
+    (loop for binding in bindings
+	 do (let ((initial-value (initial-value-of binding)))

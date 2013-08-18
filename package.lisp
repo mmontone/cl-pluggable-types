@@ -1,2 +1,2 @@
 (defpackage gradual
-  (:use :cl :hu.dwim.walker :anaphora))
+  (:use :cl :cl-walker :anaphora :alexandria))
