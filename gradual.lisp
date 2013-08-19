@@ -246,18 +246,18 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			   (equalp x 'var-type))
 			 declarations
 			 :key #'caadr))
-	 (return-type-declaration 
+	 (return-type-declarations
 	  (remove-if-not (lambda (x)
-			     (equalp x 'return-type))
+			   (equalp x 'return-type))
 			 declarations
 			 :key #'caadr))
 	 (other-declarations (set-difference declarations
 					     (append function-type-declarations
 						     var-type-declarations
-						     return-type-declaration))))
+						     return-type-declarations))))
     (values function-type-declarations
 	    var-type-declarations
-	    return-type-declaration
+	    (first return-type-declarations)
 	    other-declarations)))
 
 #+test(extract-type-declarations '((declare (ignore x))
@@ -277,7 +277,10 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
       (when function-type-declarations
 	(warn "~A doesn't make sense here" function-type-declarations))
       (let* ((return-type (or (and return-type-declaration
-				   (caddr return-type-declaration))
+				   (destructuring-bind (DECLARE (RETURN-TYPE type))
+				       return-type-declaration
+				     (declare (ignore declare return-type))
+				     type))
 			      :any))
 	     (args-types (mapcar (lambda (arg)
 				   (aif
@@ -293,14 +296,13 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	     (function-signature `(,args-types -> ,return-type)))
 	`(progn
 	   (set-fun-type ',name ',function-signature)
-	   (set-fun-source ',name (walk-form '(progn ,@body)))
+	   (set-fun-source ',name (walk-form '(progn ,@remaining-forms)))
 	   (defun ,name ,args
 	     ,doc-string
-	     ,@(remove 'function-type declarations :key #'caadr)
+	     ,@(remove-if (lambda (declaration)
+			    (member declaration (list 'function-type 'return-type)))
+			  declarations :key #'caadr)
 	     ,@remaining-forms))))))
-
-(defmacro $let (bindings &body)
-  (let ((let-form (walk-form *walker-environment* `(let ,bindings ,@body) 
 
 (defvar *typechecking-enabled* nil)
 
