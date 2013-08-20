@@ -191,7 +191,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                              (t
                               (check-variable var-or-kv "keyword parameter")
                               (when normalize-keyword
-                                (setf var-or-kv (list (make-keyword var-or-kv) var-or-kv)))))
+                                ;(setf var-or-kv (list (make-keyword var-or-kv) var-or-kv))
+				)))
                        (if (cdr tail)
                            (check-spec tail "keyword-supplied-p parameter")
                            (when normalize-keyword
@@ -217,6 +218,30 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               (simple-program-error "Invalid ordinary lambda-list:~%  ~S" lambda-list)))))))
     (values (nreverse required) (nreverse optional) rest (nreverse keys)
             allow-other-keys (nreverse aux) keyp)))
+
+(defun typed-lambda-list-to-normal (typed-lambda-list)
+  (multiple-value-bind (required optional rest keys allow-other-keys aux)
+      (parse-typed-lambda-list typed-lambda-list)
+    (append (mapcar #'first required)
+	    (when optional
+	      (cons '&optional
+		    (mapcar (lambda (arg)
+			      (list (first arg)
+				    (second arg)))
+			    optional)))
+	    (when rest
+	      (cons '&rest rest))
+	    (when keys
+	      (cons '&key
+		    (mapcar (lambda (arg)
+			      (list (first arg)
+				    (second arg)))
+			    keys)))
+	    (when allow-other-keys
+	      (cons '&allow-other-keys
+		    allow-other-keys))
+	    (when aux
+	      (cons '&aux aux)))))
 
 #+nil(defmacro $defun (name args return-type &body body)
   (multiple-value-bind (required-vars-spec)
@@ -259,6 +284,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			     (declare (fun-type f (integer -> integer)))
 			     (declare (return-type integer))))
 
+;; Comment: maybe we should consider replacing the :any type by t ? (the supertype of every type)
+
 (defmacro $defun (name args &body body)
   (multiple-value-bind (remaining-forms declarations doc-string)
       (parse-body body)
@@ -276,27 +303,55 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				     (declare (ignore declare return-type))
 				     type))
 			      :any))
-	     (args-types (mapcar (lambda (arg)
-				   (aif
-				    (find arg var-type-declarations
-					  :key (lambda (declaration)
-						 (destructuring-bind (declare (var-type var type)) declaration
-						   (declare (ignore declare var-type type))
-						   var)))
-				    (destructuring-bind (declare (var-type var type))
-					it
-				      (declare (ignore declare var-type var))
-				      type)
-					; else-of
-				    :any))
-				 args))
+	     (args-types (multiple-value-bind (required-args optional-args
+							     rest-arg key-args)
+			     (parse-typed-lambda-list args)
+			   (declare (ignore rest-arg))
+			   (mapcar (lambda (arg)
+				     (let ((declared-type (or
+							   (aand
+							    (find arg var-type-declarations
+								  :key (lambda (declaration)
+									 (destructuring-bind (declare (var-type var type)) declaration
+									   (declare (ignore declare var-type type))
+									   var)))
+							    (destructuring-bind (declare (var-type var type))
+								it
+							      (declare (ignore declare var-type var))
+							      type))
+							   :any))
+					   (lambda-list-type (aand (find arg (append required-args
+										     optional-args
+										     key-args)
+									 :key #'first)
+								   (if (equalp (length it) 2)
+								       (second it)
+								       (third it)))))
+				       (when (not (or (and (equalp lambda-list-type :any)
+							   (equalp declared-type :any))
+						      (or (equalp lambda-list-type :any)
+							  (equalp declared-type :any))))
+					 (error "Duplicate type declaration for ~A" arg))
+				       (or (and (equalp lambda-list-type :any)
+						declared-type)
+					   (and (equalp declared-type :any)
+						lambda-list-type))))
+				   (mapcar #'first (append required-args
+							   optional-args
+							   key-args)))))
 	     (function-signature `(,@args-types :-> ,return-type))
 	     (fbody (if *runtime-type-assertions-enabled*
 			`(progn
-			   ,@(loop for arg in args
-				for arg-type in args-types
-				when (not (equalp arg-type :any))
-				collect `(check-gradual-type ,arg ',arg-type))
+			   ,@(multiple-value-bind (required-args optional-args
+								 rest-arg key-args)
+						  (parse-typed-lambda-list args)
+						  (declare (ignore rest-arg))
+						  (loop for arg in (mapcar #'first (append required-args
+											   optional-args
+											   key-args))
+						     for arg-type in args-types
+						     when (not (equalp arg-type :any))
+						     collect `(check-gradual-type ,arg ',arg-type)))
 			   ,(if (not (equalp return-type :any))
 				(with-unique-names (result)
 				  `(let ((,result (progn ,@remaining-forms)))
@@ -306,8 +361,10 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			`(progn ,@remaining-forms))))
 	`(progn
 	   (set-fun-type ',name ',function-signature)
-	   (set-fun-source ',name (walk-form '(defun ,name ,args ,@body)))
-	   (defun ,name ,args
+	   (set-fun-source ',name (walk-form '(defun ,name ;; ,args  -- Use this eventually
+					       ,(typed-lambda-list-to-normal args)
+					       ,@body)))
+	   (defun ,name ,(typed-lambda-list-to-normal args)
 	     ,doc-string
 	     ,@(remove-if (lambda (declaration)
 			    (member declaration (list 'function-type 'return-type 'var-type)))
