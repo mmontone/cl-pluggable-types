@@ -2,6 +2,7 @@
   (:use :cl :cl-walker :anaphora :alexandria)
   (:export :fun-type
 	   :var-type
+	   :return-type
 	   :typecheck))
 
 (DEFPACKAGE :gradual-user
