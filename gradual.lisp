@@ -160,7 +160,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 		    (push elt required))
 		  (progn
 		    (check-variable elt "required parameter")
-		    (push (list elt 'any) required))))
+		    (push (list elt :any) required))))
              (&optional
               (cond ((consp elt)
                      (destructuring-bind (name &rest tail) elt
@@ -168,11 +168,11 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (cond ((cdr tail)
                               (check-spec tail "optional-supplied-p parameter"))
                              (normalize-optional
-                              (setf elt (append elt '(nil)))))))
+                              (setf elt (append elt '(:any)))))))
                     (t
                      (check-variable elt "optional parameter")
                      (when normalize-optional
-                       (setf elt (cons elt '(nil nil))))))
+                       (setf elt (cons elt '(nil :any))))))
               (push (ensure-list elt) optional))
              (&rest
               (check-variable elt "rest parameter")
@@ -195,12 +195,12 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (if (cdr tail)
                            (check-spec tail "keyword-supplied-p parameter")
                            (when normalize-keyword
-                             (setf tail (append tail '(nil)))))
+                             (setf tail (append tail '(:any)))))
                        (setf elt (cons var-or-kv tail))))
                     (t
                      (check-variable elt "keyword parameter")
                      (setf elt (if normalize-keyword
-                                   (list (list (make-keyword elt) elt) nil nil)
+                                   (list (list (make-keyword elt) elt) nil :any)
                                    elt))))
               (push elt keys))
              (&aux
