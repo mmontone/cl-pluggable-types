@@ -3,6 +3,7 @@
   (:export :fun-type
 	   :var-type
 	   :return-type
+	   :defun-type
 	   :typecheck))
 
 (DEFPACKAGE :gradual-user
