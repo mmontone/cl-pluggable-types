@@ -303,7 +303,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			`(progn ,@remaining-forms))))
 	`(progn
 	   (set-fun-type ',name ',function-signature)
-	   (set-fun-source ',name (walk-form '(progn ,@remaining-forms)))
+	   (set-fun-source ',name (walk-form '(defun ,name ,args ,@body)))
 	   (defun ,name ,args
 	     ,doc-string
 	     ,@(remove-if (lambda (declaration)
