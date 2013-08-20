@@ -23,8 +23,7 @@
 (defun fun-type (fun-name)
   (or
    (gethash fun-name *fun-types*)
-   '(list :required-vars any
-     :return any)))
+   '(:any :-> :any)))
 
 (defun set-fun-source (fun-name source)
   (setf (gethash fun-name *fun-sources*) source))
@@ -32,40 +31,32 @@
 (defun fun-source (fun-name)
   (gethash fun-name *fun-sources*))
 
-(defun gradual-type-error ()
-  (error "Type error"))
+(define-condition gradual-type-error (simple-error)
+  ())
+
+(defun gradual-type-error (message &rest args)
+  (error 'gradual-type-error
+	:format-control message
+	:format-arguments args))
 
 (defmacro $defparameter (var val &optional doc (type 'any))
   `(prog1
      (defparameter ,var ,val ,doc)
      (when (not (check-gradual-type ,var ',type))
-       (gradual-type-error))
+       (gradual-type-error "~A is not of type ~A" ,var ',type))
      (set-var-type ',var ',type)))
 
 (defun check-gradual-type (object type &key (throw-error-p t))
   (let ((type-check-result (%check-gradual-type (type-of object) type)))
     (when (and (not type-check-result) throw-error-p)
-      (gradual-type-error))
+      (gradual-type-error "~A is not of type ~A" object type))
     type-check-result))
 
-(defmethod %check-gradual-type (object-type type)
-  (or (equalp object-type type)
-      (error "Undefined")))
-
-(defmethod %check-gradual-type (object-type (type (eql 'any)))
+(defmethod %check-gradual-type (object-type (type (eql :any)))
   t)
 
-(defmethod %check-gradual-type (object-type (type (eql 'integer)))
-  (and (listp object-type) (equalp (first object-type) 'integer)))
-
-(defmethod %check-gradual-type (object-type (type (eql 'number)))
-  (or (and (listp object-type) (equalp (first object-type) 'integer))
-      (equalp object-type 'bit)))
-
-(defmacro $setq (var value)
-  `(progn
-     (check-gradual-type ,value (var-type ',var))
-     (setq ,var ,value)))
+(defmethod %check-gradual-type (object-type type)
+  (subtypep object-type type))
 
 (defun parse-typed-lambda-list (lambda-list &key (normalize t)
 					      allow-specializers
@@ -285,26 +276,53 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	     (args-types (mapcar (lambda (arg)
 				   (aif
 				    (find arg var-type-declarations
-					  :key (compose #'first #'caddr))
-				    (destructuring-bind (_ var-name var-type)
+					  :key (lambda (declaration)
+						 (destructuring-bind (declare (var-type var type)) declaration
+						   (declare (ignore declare var-type type))
+						   var)))
+				    (destructuring-bind (declare (var-type var type))
 					it
-				      (declare (ignore _ var-name))
-				      var-type)
-					; else
+				      (declare (ignore declare var-type var))
+				      type)
+					; else-of
 				    :any))
-				 var-type-declarations))
-	     (function-signature `(,args-types -> ,return-type)))
+				 args))
+	     (function-signature `(,@args-types :-> ,return-type))
+	     (fbody (if *runtime-type-assertions-enabled*
+			`(progn
+			   ,@(loop for arg in args
+				for arg-type in args-types
+				when (not (equalp arg-type :any))
+				collect `(check-gradual-type ,arg ',arg-type))
+			   ,(if (not (equalp return-type :any))
+				(with-unique-names (result)
+				  `(let ((,result (progn ,@remaining-forms)))
+				     (check-gradual-type ,result ',return-type)
+				     ,result))
+				`(progn ,@remaining-forms)))
+			`(progn ,@remaining-forms))))
 	`(progn
 	   (set-fun-type ',name ',function-signature)
 	   (set-fun-source ',name (walk-form '(progn ,@remaining-forms)))
 	   (defun ,name ,args
 	     ,doc-string
 	     ,@(remove-if (lambda (declaration)
-			    (member declaration (list 'function-type 'return-type)))
+			    (member declaration (list 'function-type 'return-type 'var-type)))
 			  declarations :key #'caadr)
-	     ,@remaining-forms))))))
+	     ,fbody))))))
 
 (defvar *typechecking-enabled* nil)
+(defvar *runtime-type-assertions-enabled* t)
+
+(defun call-with-runtype-type-assertions (enabled-p function)
+  (let ((*runtime-type-assertions-enabled* enabled-p))
+    (funcall function)))
+
+(defmacro without-runtime-type-assertions (&body body)
+  `(call-with-runtime-type-assertions nil (lambda () ,@body)))
+
+(defmacro with-runtime-type-assertions (&body body)
+  `(call-with-runtime-type-assertions t (lambda () ,@body)))
 
 (defun typecheck ())
 
