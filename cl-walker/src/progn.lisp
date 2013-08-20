@@ -99,6 +99,20 @@
 (defunwalker-handler type-declaration-form (type name)
   `(type ,type ,name))
 
+;; Gradual types declarations
+
+(defclass var-type-declaration-form (variable-declaration-form)
+  ((type :accessor type-of :initarg :type)))
+
+(defunwalker-handler var-type-declaration-form (type name)
+  `(var-type ,type ,name))
+
+(defclass return-type-declaration-form (declaration-form)
+  ((type :accessor type-of :initarg :type)))
+
+(defunwalker-handler return-type-declaration-form (type)
+  `(return-type ,type))
+
 (defclass ftype-declaration-form (function-declaration-form)
   ((type :accessor type-of :initarg :type)))
 
@@ -120,8 +134,7 @@
 (defvar *known-declaration-types* (append
                                    #+sbcl
                                    '(sb-ext:muffle-conditions
-                                     )
-                                   ))
+                                     )))
 
 (defun walk-declaration (declaration environment parent)
   (let ((declares nil))
@@ -177,6 +190,19 @@
                                            :name var
                                            :type (first arguments))
                          var `(type ,(first arguments))))
+	    ;; Gradual types declarations
+	    ;; These are probably buggy, as I dont know very well what I'm doing. Revise.
+	    (gradual::var-type
+	     (extend-env (var (rest arguments))
+			 (make-form-object 'var-type-declaration-form parent
+					   :name (first arguments)
+					   :type var)
+			 (first arguments) `(var-type ,var)))
+	    (gradual::return-type
+	     (extend-env (type arguments)
+			 (make-form-object 'return-type-declaration-form parent
+					   :type type)
+			 'return-type type))
             (t
              (unless (member type *known-declaration-types* :test #'eq)
                (simple-style-warning "Ignoring unknown declaration ~S while walking forms. If it's a type declaration, then use the full form to avoid this warning: `(type ,type ,@variables), or you can also (pushnew ~S ~S)."
