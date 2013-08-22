@@ -508,4 +508,35 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
   (cl-walker::type-of form))
 
 (defmethod %infer-type ((form lambda-function-form) typing-environment)
-  
+  (let* ((args-type-declarations (remove-if-not (lambda (declare)
+						 (typep declare 'cl-walker::var-type-declaration-form))
+					       (declares-of form)))
+	(arg-types (mapcar (lambda (arg)
+			     (cons (name-of arg)
+				   (let ((declared-type (aand
+							 (find (name-of arg)
+							       args-type-declarations
+							       :key #'name-of)
+							 (cl-walker::type-of it)))
+					 (lambda-list-type (cl-walker::type-spec arg)))
+				     (when (and (and declared-type lambda-list-type)
+						(not (equalp declared-type lambda-list-type)))
+				       (error "Duplicate type declaration for ~A" (name-of arg)))
+				     (or declared-type lambda-list-type (aand (default-value-of arg)
+									      (%infer-type it typing-environment))
+					 t))))
+			   (arguments-of form)))
+	 (return-type (let ((return-type-declaration
+			     (remove-if-not (lambda (declare)
+					      (typep declare 'cl-walker::return-type-declaration-form))
+					    (declares-of form))))
+			(if return-type-declaration
+			    (cl-walker::type-of return-type-declaration)
+			    ; else
+			    (let ((fresh-typing-environment (copy-typing-environment typing-environment)))
+			      (loop for (arg . type) in  arg-types
+				 do (setf fresh-typing-environment (set-env-var-type fresh-typing-environment arg type)))
+			      (%infer-type (car (last (body-of form)))
+					   fresh-typing-environment))))))
+    (make-function-type :required-args-types (mapcar #'cdr arg-types)
+			:return-type return-type)))

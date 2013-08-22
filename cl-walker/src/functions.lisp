@@ -221,7 +221,8 @@
       (values (nreverse result) env))))
 
 (defclass type-spec-form ()
-  ((type-spec :accessor type-spec :initarg :type-spec)))
+  ((type-spec :accessor type-spec :initarg :type-spec
+	      :initform nil)))
 
 (defclass function-argument-form (walked-form binding-entry-mixin type-spec-form)
   ())

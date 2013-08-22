@@ -31,10 +31,9 @@
   ((name :accessor name-of :initarg :name)
    (usages :accessor usages-of :initarg :usages)))
 
-(defclass variable-binding-entry-form (walked-form binding-entry-mixin)
+(defclass variable-binding-entry-form (walked-form binding-entry-mixin type-spec-form)
   ((value :accessor value-of :initarg :value)
-   (specialp :accessor special-binding? :initform nil)
-   (type :accessor type-spec :initarg :type-spec)))
+   (specialp :accessor special-binding? :initform nil)))
 
 (defunwalker-handler variable-binding-entry-form (name value)
   (if value
@@ -101,14 +100,17 @@
 
 ;; Gradual types declarations
 
-(defclass var-type-declaration-form (variable-declaration-form)
+(defclass type-declaration-form ()
   ((type :accessor type-of :initarg :type)))
+
+(defclass var-type-declaration-form (variable-declaration-form type-declaration-form)
+  ())
 
 (defunwalker-handler var-type-declaration-form (type name)
   `(var-type ,type ,name))
 
-(defclass return-type-declaration-form (declaration-form)
-  ((type :accessor type-of :initarg :type)))
+(defclass return-type-declaration-form (declaration-form type-declaration-form)
+  ())
 
 (defunwalker-handler return-type-declaration-form (type)
   `(return-type ,type))
