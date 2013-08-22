@@ -418,33 +418,46 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 (defmacro with-typechecking (&body body)
   `(call-with-typechecking t (lambda () ,@body)))
 
-(defun make-typing-environment ()
-  (list :var-types nil
-	:fun-types nil))
+(defstruct (typing-environment
+	     (:print-function
+	      (lambda (struct stream depth)
+		(declare (ignore depth))
+		(format stream "#S<TYPING-ENVIRONMENT VARS: ~A FUNS: ~A>"
+			(typing-environment-var-types struct)
+			(typing-environment-fun-types struct)))))
+  var-types
+  fun-types)
 
-(defun clone-typing-environment (env)
-  (copy-tree env))
+(declaim (ftype (function (typing-environment) typing-environment) copy-typing-environment))
+(defun copy-typing-environment (env)
+  (let ((env-copy (make-typing-environment)))
+    (setf (typing-environment-var-types env-copy)
+	  (copy-tree (typing-environment-var-types env)))
+    (setf (typing-environment-fun-types env-copy)
+	  (copy-tree (typing-environment-fun-types env)))
+    env-copy))	  
 
 (defun env-fun-type (env fun-name)
-  (assoc fun-name (getf env :fun-types)))
+  (cdr (assoc fun-name (typing-environment-fun-types env))))
 
 (defun set-env-fun-type (env fun-name type)
-  (let ((new-env (clone-typing-environment env)))
+  (let ((new-env (copy-typing-environment env)))
     (let ((old-type (env-fun-type new-env fun-name)))
       (when old-type
 	(warn "~A already has type ~A in env ~A" fun-name old-type new-env))
-      (push (cons fun-name type) (getf new-env :fun-types))
+      (push (cons fun-name type) (typing-environment-fun-types new-env))
       new-env)))
 
 (defun env-var-type (env var-name)
-  (assoc var-name (getf env :var-types)))
+  (cdr
+   (assoc var-name (typing-environment-var-types env))))
 
 (defun set-env-var-type (env var-name type)
-  (let ((new-env (clone-typing-environment env)))
+  (let ((new-env (copy-typing-environment env)))
     (let ((old-type (env-fun-type new-env var-name)))
       (when old-type
 	(warn "~A already has type ~A in env ~A" var-name old-type new-env))
-      (push (cons var-name type) (getf new-env :var-types))
+      (push (cons var-name type) (typing-environment-var-types new-env))
       new-env)))
 
 (defun typecheck-form (form &optional (typing-environment (make-typing-environment)))
@@ -462,7 +475,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	 do (let ((initial-value (initial-value-of binding)))))))
 
 (defun infer-type (form)
-  (%infer-type form (make-typing-environment)))
+  (%infer-type form
+	       (make-typing-environment)))
 
 (defgeneric %infer-type (form typing-environment)
   )
@@ -473,15 +487,19 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 (defmethod %infer-type ((form free-application-form) typing-environment)
   (let ((function-type (fun-type (operator-of form)))
 	(args-types (mapcar #'infer-type (arguments-of form))))
-    function-type))
+    (function-type-return-type function-type)))
 
 (defmethod %infer-type ((form let-form) typing-environment)
-  (let ((fresh-typing-environment (clone-typing-environment typing-environment)))
+  (let ((fresh-typing-environment typing-environment))
     (loop for binding in (bindings-of form)
 	 do
-	 (set-env-var-type fresh-typing-environment
-			   (name-of binding)
-			   (if (not (equalp (type-of binding) t))
-			       (infer-type (value-of binding typing-environment))
-			       (type-of binding))))
-    (%infer-type (body-of form) fresh-typing-environment)))
+	 (setf fresh-typing-environment
+	       (set-env-var-type fresh-typing-environment
+				 (name-of binding)
+				 (if (not (equalp (type-of binding) t))
+				     (%infer-type (value-of binding) typing-environment)
+				     (type-of binding)))))
+    (%infer-type (car (last (body-of form))) fresh-typing-environment)))
+
+(defmethod %infer-type ((form walked-lexical-variable-reference-form) typing-environment)
+  (env-var-type typing-environment (name-of form)))
