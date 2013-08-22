@@ -496,9 +496,9 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	 (setf fresh-typing-environment
 	       (set-env-var-type fresh-typing-environment
 				 (name-of binding)
-				 (if (not (equalp (type-of binding) t))
+				 (if (equalp (cl-walker::type-spec binding) t)
 				     (%infer-type (value-of binding) typing-environment)
-				     (type-of binding)))))
+				     (cl-walker::type-spec binding)))))
     (%infer-type (car (last (body-of form))) fresh-typing-environment)))
 
 (defmethod %infer-type ((form walked-lexical-variable-reference-form) typing-environment)
