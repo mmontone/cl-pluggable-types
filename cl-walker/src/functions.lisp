@@ -198,7 +198,7 @@
              (unless (typep argument 'allow-other-keys-function-argument-form)
                (augment-walkenv! env :variable (name-of argument) argument))))
       (parse-lambda-list lambda-list
-                         (lambda (kind name argument)
+                         (lambda (kind name argument &optional type-spec)
                            (declare (ignore name))
                            (let ((parsed
                                   (case kind
@@ -206,7 +206,8 @@
                                      (if allow-specializers
                                          (walk-specialized-argument-form argument parent env)
                                          (make-form-object 'required-function-argument-form  parent
-                                                           :name argument)))
+                                                           :name argument
+							   :type-spec type-spec)))
                                     (&optional
                                      (walk-optional-argument argument parent env))
                                     (&allow-other-keys
@@ -219,7 +220,10 @@
                                (extend-env parsed)))))
       (values (nreverse result) env))))
 
-(defclass function-argument-form (walked-form binding-entry-mixin)
+(defclass type-spec-form ()
+  ((type-spec :accessor type-spec :initarg :type-spec)))
+
+(defclass function-argument-form (walked-form binding-entry-mixin type-spec-form)
   ())
 
 (defprint-object function-argument-form

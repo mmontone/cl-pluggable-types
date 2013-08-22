@@ -28,3 +28,7 @@
 ($defun concatenate-strings ((str1 string) (str2 string))
   (declare (return-type string))
   (concatenate 'string str1 str2))
+
+(infer-type (walk-form '(concatenate-strings "s1" "s2")))
+
+

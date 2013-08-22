@@ -122,7 +122,12 @@ that it creates a fresh binding."
              (&aux          (entering-&aux))
              (t
               (let ((arg (pop args)))
-                (funcall visitor nil arg arg))
+		(if (listp arg)
+		    ;; We assume an argument type declaration
+		    (destructuring-bind (name type) arg
+		      (funcall visitor nil name name type))
+		    ; else
+		    (funcall visitor nil arg arg)))
               (process-required))))
          (process-&rest ()
            (assert (eq (first args) '&rest))

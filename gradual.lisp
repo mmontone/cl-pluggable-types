@@ -506,3 +506,6 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defmethod %infer-type ((form the-form) typing-environment)
   (cl-walker::type-of form))
+
+(defmethod %infer-type ((form lambda-function-form) typing-environment)
+  
