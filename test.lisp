@@ -31,4 +31,12 @@
 
 (infer-type (walk-form '(concatenate-strings "s1" "s2")))
 
+(infer-type (walk-form '(lambda (x)
+			 (declare (var-type x integer))
+			 x)))
 
+(infer-type (walk-form '(lambda (x)
+			 x)))
+
+(infer-type (walk-form '(lambda ((x string))
+			 x)))

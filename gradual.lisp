@@ -522,8 +522,11 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				     (when (and (and declared-type lambda-list-type)
 						(not (equalp declared-type lambda-list-type)))
 				       (error "Duplicate type declaration for ~A" (name-of arg)))
-				     (or declared-type lambda-list-type (aand (default-value-of arg)
-									      (%infer-type it typing-environment))
+				     (or declared-type lambda-list-type
+					 (and (typep arg 'cl-walker::optional-function-argument-form)
+					      (aand
+					       (default-value-of arg)
+					       (%infer-type it typing-environment)))
 					 t))))
 			   (arguments-of form)))
 	 (return-type (let ((return-type-declaration
