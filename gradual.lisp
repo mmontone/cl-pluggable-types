@@ -496,10 +496,13 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	 (setf fresh-typing-environment
 	       (set-env-var-type fresh-typing-environment
 				 (name-of binding)
-				 (if (equalp (cl-walker::type-spec binding) t)
+				 (if (not (cl-walker::type-spec binding))
 				     (%infer-type (value-of binding) typing-environment)
 				     (cl-walker::type-spec binding)))))
     (%infer-type (car (last (body-of form))) fresh-typing-environment)))
 
 (defmethod %infer-type ((form walked-lexical-variable-reference-form) typing-environment)
   (env-var-type typing-environment (name-of form)))
+
+(defmethod %infer-type ((form the-form) typing-environment)
+  (cl-walker::type-of form))
