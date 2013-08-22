@@ -340,10 +340,15 @@
          ,@body))
      ',class))
 
-(defclass walked-form ()
+(defclass walked-form (typed-form)
   ((parent :accessor parent-of :initarg :parent)
    (source :initform *current-form* :accessor source-of :initarg :source)
    (properties :initform nil :accessor form-properties :initarg :properties)))
+
+;; Form for typing
+(defclass typed-form ()
+  ((type :accessor type-of :initarg :type
+	 :initform t)))
 
 (defmethod make-load-form ((object walked-form) &optional env)
   (make-load-form-saving-slots object :environment env))

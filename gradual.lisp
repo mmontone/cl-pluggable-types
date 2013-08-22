@@ -6,6 +6,29 @@
 (defparameter *type-environment* (make-hash-table :test #'equalp))
 (defparameter *walker-environment* (make-walk-environment))
 
+(defstruct (function-type
+	     (:print-function
+	      (lambda (struct stream depth)
+		(declare (ignore depth))
+		(format stream "(FUNCTION (~A~A~A~A) ~A)"
+			(format nil "~{~a~^ ~}" (function-type-required-args-types struct))
+			(or (aand (function-type-optional-args-types struct)
+				  (format nil " &optional ~{~a~^ ~}" it))
+			    "")
+			(or (aand (function-type-keyword-args-types struct)
+				  (format nil " &key ~{~a~^ ~}" it))
+			    "")
+			(or (aand (function-type-rest-arg-type struct)
+				  (format nil " &rest ~A" it))
+			    "")
+			(function-type-return-type struct)))))
+  required-args-types
+  optional-args-types
+  keyword-args-types
+  rest-arg-type
+  return-type)
+   
+
 ;;(defmacro get-walker-template-internal (x)
 ;;  `(get ,x 'walker-template))
 
@@ -15,7 +38,7 @@
 (defun var-type (var)
   (or
    (gethash var *var-types*)
-   'any))
+   t))
 
 (defun set-fun-type (fun-name type)
   (setf (gethash fun-name *fun-types*) type))
@@ -26,7 +49,7 @@
 (defun fun-type (fun-name)
   (or
    (gethash fun-name *fun-types*)
-   '(:any :-> :any)))
+   (make-function-type :rest-arg-type t :return-type t)))
 
 (defun set-fun-source (fun-name source)
   (setf (gethash fun-name *fun-sources*) source))
@@ -42,7 +65,7 @@
 	:format-control message
 	:format-arguments args))
 
-(defmacro $defparameter (var val &optional doc (type 'any))
+(defmacro $defparameter (var val &optional doc (type 't))
   `(prog1
      (defparameter ,var ,val ,doc)
      (when (not (check-gradual-type ,var ',type))
@@ -54,9 +77,6 @@
     (when (and (not type-check-result) throw-error-p)
       (gradual-type-error "~A is not of type ~A" object type))
     type-check-result))
-
-(defmethod %check-gradual-type (object-type (type (eql :any)))
-  t)
 
 (defmethod %check-gradual-type (object-type type)
   (subtypep object-type type))
@@ -160,7 +180,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 		    (push elt required))
 		  (progn
 		    (check-variable elt "required parameter")
-		    (push (list elt :any) required))))
+		    (push (list elt t) required))))
              (&optional
               (cond ((consp elt)
                      (destructuring-bind (name &rest tail) elt
@@ -168,11 +188,11 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (cond ((cdr tail)
                               (check-spec tail "optional-supplied-p parameter"))
                              (normalize-optional
-                              (setf elt (append elt '(:any)))))))
+                              (setf elt (append elt '(,t)))))))
                     (t
                      (check-variable elt "optional parameter")
                      (when normalize-optional
-                       (setf elt (cons elt '(nil :any))))))
+                       (setf elt (cons elt '(nil ,t))))))
               (push (ensure-list elt) optional))
              (&rest
               (check-variable elt "rest parameter")
@@ -196,12 +216,12 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (if (cdr tail)
                            (check-spec tail "keyword-supplied-p parameter")
                            (when normalize-keyword
-                             (setf tail (append tail '(:any)))))
+                             (setf tail (append tail '(,t)))))
                        (setf elt (cons var-or-kv tail))))
                     (t
                      (check-variable elt "keyword parameter")
                      (setf elt (if normalize-keyword
-                                   (list (list (make-keyword elt) elt) nil :any)
+                                   (list (list (make-keyword elt) elt) nil t)
                                    elt))))
               (push elt keys))
              (&aux
@@ -302,7 +322,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				       return-type-declaration
 				     (declare (ignore declare return-type))
 				     type))
-			      :any))
+			      t))
 	     (args-types (multiple-value-bind (required-args optional-args
 							     rest-arg key-args)
 			     (parse-typed-lambda-list args)
@@ -319,7 +339,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 								it
 							      (declare (ignore declare var-type var))
 							      type))
-							   :any))
+							   t))
 					   (lambda-list-type (aand (find arg (append required-args
 										     optional-args
 										     key-args)
@@ -327,19 +347,21 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 								   (if (equalp (length it) 2)
 								       (second it)
 								       (third it)))))
-				       (when (not (or (and (equalp lambda-list-type :any)
-							   (equalp declared-type :any))
-						      (or (equalp lambda-list-type :any)
-							  (equalp declared-type :any))))
+				       (when (not (or (and (equalp lambda-list-type t)
+							   (equalp declared-type t))
+						      (or (equalp lambda-list-type t)
+							  (equalp declared-type t))))
 					 (error "Duplicate type declaration for ~A" arg))
-				       (or (and (equalp lambda-list-type :any)
+				       (or (and (equalp lambda-list-type t)
 						declared-type)
-					   (and (equalp declared-type :any)
+					   (and (equalp declared-type t)
 						lambda-list-type))))
 				   (mapcar #'first (append required-args
 							   optional-args
 							   key-args)))))
-	     (function-signature `(,@args-types :-> ,return-type))
+	     ;; TODO: fix the function type
+	     (function-type `(make-function-type :required-args-types ',args-types
+						 :return-type ',return-type))
 	     (fbody (if *runtime-type-assertions-enabled*
 			`(progn
 			   ,@(multiple-value-bind (required-args optional-args
@@ -350,9 +372,9 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 											   optional-args
 											   key-args))
 						     for arg-type in args-types
-						     when (not (equalp arg-type :any))
+						     when (not (equalp arg-type t))
 						     collect `(check-gradual-type ,arg ',arg-type)))
-			   ,(if (not (equalp return-type :any))
+			   ,(if (not (equalp return-type t))
 				(with-unique-names (result)
 				  `(let ((,result (progn ,@remaining-forms)))
 				     (check-gradual-type ,result ',return-type)
@@ -360,7 +382,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				`(progn ,@remaining-forms)))
 			`(progn ,@remaining-forms))))
 	`(progn
-	   (set-fun-type ',name ',function-signature)
+	   (set-fun-type ',name ,function-type)
 	   (set-fun-source ',name (walk-form '(defun ,name ;; ,args  -- Use this eventually
 					       ,(typed-lambda-list-to-normal args)
 					       ,@body)))
@@ -437,4 +459,29 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form)))
     (loop for binding in bindings
-	 do (let ((initial-value (initial-value-of binding)))
+	 do (let ((initial-value (initial-value-of binding)))))))
+
+(defun infer-type (form)
+  (%infer-type form (make-typing-environment)))
+
+(defgeneric %infer-type (form typing-environment)
+  )
+
+(defmethod %infer-type ((form constant-form) typing-environment)
+  (type-of (value-of form)))
+
+(defmethod %infer-type ((form free-application-form) typing-environment)
+  (let ((function-type (fun-type (operator-of form)))
+	(args-types (mapcar #'infer-type (arguments-of form))))
+    function-type))
+
+(defmethod %infer-type ((form let-form) typing-environment)
+  (let ((fresh-typing-environment (clone-typing-environment typing-environment)))
+    (loop for binding in (bindings-of form)
+	 do
+	 (set-env-var-type fresh-typing-environment
+			   (name-of binding)
+			   (if (not (equalp (type-of binding) t))
+			       (infer-type (value-of binding typing-environment))
+			       (type-of binding))))
+    (%infer-type (body-of form) fresh-typing-environment)))

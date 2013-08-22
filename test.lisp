@@ -25,3 +25,6 @@
 ($setq *question* 2)
 ($setq *question* t)
 
+($defun concatenate-strings ((str1 string) (str2 string))
+  (declare (return-type string))
+  (concatenate 'string str1 str2))
