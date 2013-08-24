@@ -22,9 +22,23 @@
        finally (return type)))
 
 (defmethod %typecheck-form ((form let-form) typing-environment)
-  (let ((bindings (bindings-of form)))
+  (let ((bindings (bindings-of form))
+	(let-env typing-environment))
     (loop for binding in bindings
-	 do (let ((initial-value (value-of binding)))))))
+	 do (let ((value (value-of binding))
+		  (type (or (cl-walker::type-spec binding)
+			    t)))
+	      (let ((value-type (%typecheck-form value typing-environment)))
+		(if (not (or (equalp value-type t)
+			     (subtypep value-type type)))
+		    (format t "~%Type error: ~A should have type ~A but is ~A in ~A"
+			    (name-of binding)
+			    type
+			    value-type
+			    (source-of form)))
+		(setf let-env (set-env-var-type let-env (name-of binding)
+						value-type)))))
+    (%typecheck-form (body-of form) let-env)))		    
 
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)
   (let* ((declarations (declares-of form))
@@ -77,11 +91,12 @@
 		 (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 		   (when (not (or (equalp actual-arg-type t)
 				  (subtypep actual-arg-type formal-arg-type)))
-		     (format t "~%Type error in ~A: ~A has type ~A but ~A expected"
+		     (format t "~%Type error in ~A: ~A has type ~A but ~A expected in ~A"
 			     operator
 			     (name-of arg)
 			     actual-arg-type
-			     formal-arg-type))))
+			     formal-arg-type
+			     (source-of form)))))
 	    (function-type-return-type operator-type))))))
 
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
