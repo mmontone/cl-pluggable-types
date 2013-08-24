@@ -49,7 +49,8 @@
 (defun fun-type (fun-name)
   (or
    (gethash fun-name *fun-types*)
-   (make-function-type :rest-arg-type t :return-type t)))
+   ;(make-function-type :rest-arg-type t :return-type t)
+   nil))
 
 (defun set-fun-source (fun-name source)
   (setf (gethash fun-name *fun-sources*) source))
@@ -188,11 +189,11 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (cond ((cdr tail)
                               (check-spec tail "optional-supplied-p parameter"))
                              (normalize-optional
-                              (setf elt (append elt '(,t)))))))
+                              (setf elt (append elt '(t)))))))
                     (t
                      (check-variable elt "optional parameter")
                      (when normalize-optional
-                       (setf elt (cons elt '(nil ,t))))))
+                       (setf elt (cons elt '(nil t))))))
               (push (ensure-list elt) optional))
              (&rest
               (check-variable elt "rest parameter")
@@ -216,7 +217,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (if (cdr tail)
                            (check-spec tail "keyword-supplied-p parameter")
                            (when normalize-keyword
-                             (setf tail (append tail '(,t)))))
+                             (setf tail (append tail '(t)))))
                        (setf elt (cons var-or-kv tail))))
                     (t
                      (check-variable elt "keyword parameter")
@@ -340,18 +341,20 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 							      (declare (ignore declare var-type var))
 							      type))
 							   t))
-					   (lambda-list-type (aand (find arg (append required-args
+					   (lambda-list-type (or (aand (find arg (append required-args
 										     optional-args
 										     key-args)
 									 :key #'first)
 								   (if (equalp (length it) 2)
 								       (second it)
-								       (third it)))))
+								       (third it)))
+								 t)))
 				       (when (not (or (and (equalp lambda-list-type t)
 							   (equalp declared-type t))
 						      (or (equalp lambda-list-type t)
 							  (equalp declared-type t))))
-					 (error "Duplicate type declaration for ~A" arg))
+					 (error "Duplicate type declaration for ~A. Declaration type: ~A lambda list type: ~A"
+						arg declared-type lambda-list-type))
 				       (or (and (equalp lambda-list-type t)
 						declared-type)
 					   (and (equalp declared-type t)
@@ -405,8 +408,6 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defmacro with-runtime-type-assertions (&body body)
   `(call-with-runtime-type-assertions t (lambda () ,@body)))
-
-(defun typecheck ())
 
 (defun call-with-typechecking (enabled-p function)
   (let ((*typechecking-enabled* enabled-p))
