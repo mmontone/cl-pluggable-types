@@ -33,7 +33,8 @@
 	  (remove-if-not
 	   (lambda (declaration)
 	     (typep declaration 'cl-walker::var-type-declaration-form))
-	   declarations)))
+	   declarations))
+	 (fun-type (fun-type (name-of form))))
     ;; We could just traverse the types in the (fun-type (name-of form))
     (loop for arg in (arguments-of form)
 	 do (let ((arg-type (or (cl-walker::type-spec arg)
@@ -41,8 +42,15 @@
 				      (cl-walker::type-of it))
 				t)))
 	      (setf fun-env (set-env-var-type fun-env (name-of arg) arg-type))))
-    (%typecheck-form (body-of form) fun-env)
-    (fun-type (name-of form))))
+    (let ((body-type
+	   (%typecheck-form (body-of form) fun-env)))
+      (when (not (or (equalp body-type t)
+		     (subtypep body-type (function-type-return-type fun-type))))
+	(format t "~%Type error: ~A should return ~A but ~A found."
+		(name-of form)
+		(function-type-return-type fun-type)
+		body-type))
+      fun-type)))
 
 (defmethod %typecheck-form ((form cons) typing-environment)
   ;; We assume an implicit progn here
@@ -79,3 +87,6 @@
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
   (or (env-var-type typing-environment (name-of form))
       t))
+
+(defmethod %typecheck-form ((form constant-form) typing-environment)
+  (type-of (value-of form)))
