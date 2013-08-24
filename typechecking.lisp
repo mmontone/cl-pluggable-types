@@ -14,9 +14,12 @@
     (%typecheck-form walked-form typing-environment)))
 
 (defmethod %typecheck-form ((form progn-form) typing-environment)
-  (loop for body-form in (body-of form)
-       do
-       (%typecheck-form body-form typing-environment)))
+  (loop
+     with type = t
+     for body-form in (body-of form)
+     do
+       (setf type (%typecheck-form body-form typing-environment))
+       finally (return type)))
 
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form)))
@@ -31,18 +34,23 @@
 	   (lambda (declaration)
 	     (typep declaration 'cl-walker::var-type-declaration-form))
 	   declarations)))
+    ;; We could just traverse the types in the (fun-type (name-of form))
     (loop for arg in (arguments-of form)
-       do (let ((arg-type (or (cl-walker::type-spec arg)
-			      (aand (find (name-of arg) args-declarations :key #'name-of :test #'equalp)
-				    (cl-walker::type-of it))
-			      t)))
-	    (setf fun-env (set-env-var-type fun-env (name-of arg) arg-type))))
-    (%typecheck-form (body-of form) fun-env)))
+	 do (let ((arg-type (or (cl-walker::type-spec arg)
+				(aand (find (name-of arg) args-declarations :key #'name-of :test #'equalp)
+				      (cl-walker::type-of it))
+				t)))
+	      (setf fun-env (set-env-var-type fun-env (name-of arg) arg-type))))
+    (%typecheck-form (body-of form) fun-env)
+    (fun-type (name-of form))))
 
 (defmethod %typecheck-form ((form cons) typing-environment)
   ;; We assume an implicit progn here
-  (loop for f in form
-       do (%typecheck-form f typing-environment)))
+  (loop with type = t
+     for f in form
+     do (setf type
+	  (%typecheck-form f typing-environment))
+     finally (return type)))
 
 (defmethod %typecheck-form ((form free-application-form) typing-environment)
   (let ((operator (operator-of form))
@@ -50,16 +58,24 @@
     (let ((operator-type (fun-type operator)))
       (if (null operator-type)
 	  ;; No type declared for operator, we are ok then
-	  (return-from %typecheck-form)
+	  (progn
+	    (format t "~%Warning: function ~A type has not been declared." operator)
+	    (return-from %typecheck-form t))
 	  ;; else, check the operator type signature matches the arguments types
-	  (loop for arg in args
-	     for arg-type in (function-type-required-args-types operator-type)
-	     do (let ((env-arg-type (env-var-type typing-environment (name-of arg))))
-		  (when env-arg-type 
-		    (when (not (equalp env-arg-type t))
-		      (when (not (subtypep env-arg-type arg-type))
-			(format t "~%Type error in ~A: ~S has type ~A but ~A expected"
-				operator
-				(name-of arg)
-				env-arg-type
-				arg-type))))))))))
+	  (progn
+	    (loop for arg in args
+	       for formal-arg-type in (function-type-required-args-types operator-type)
+	       do
+		 (let ((actual-arg-type (%typecheck-form arg typing-environment)))
+		   (when (not (or (equalp actual-arg-type t)
+				  (subtypep actual-arg-type formal-arg-type)))
+		     (format t "~%Type error in ~A: ~A has type ~A but ~A expected"
+			     operator
+			     (name-of arg)
+			     actual-arg-type
+			     formal-arg-type))))
+	    (function-type-return-type operator-type))))))
+
+(defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
+  (or (env-var-type typing-environment (name-of form))
+      t))
