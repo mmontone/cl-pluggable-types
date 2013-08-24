@@ -1,5 +1,9 @@
 (in-package :gradual)
 
+(defun infer-type (form)
+  (%infer-type form
+	       (make-typing-environment)))
+
 (defgeneric %infer-type (form typing-environment)
   )
 

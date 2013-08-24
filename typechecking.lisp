@@ -63,10 +63,3 @@
 				(name-of arg)
 				env-arg-type
 				arg-type))))))))))
-
-
-(defun infer-type (form)
-  (%infer-type form
-	       (make-typing-environment)))
-
-
