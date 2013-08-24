@@ -394,10 +394,12 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	     ,@(remove-if (lambda (declaration)
 			    (member declaration (list 'function-type 'return-type 'var-type)))
 			  declarations :key #'caadr)
-	     ,fbody))))))
+	     ,fbody)
+	   (when *typechecking-enabled*
+	     (typecheck)))))))
 
-(defvar *typechecking-enabled* nil)
-(defvar *runtime-type-assertions-enabled* t)
+(defvar *typechecking-enabled* nil "When true, typecheck after function definition")
+(defvar *runtime-type-assertions-enabled* t "When true, insert runtime type checks")
 
 (defun call-with-runtype-type-assertions (enabled-p function)
   (let ((*runtime-type-assertions-enabled* enabled-p))
@@ -418,3 +420,6 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defmacro with-typechecking (&body body)
   `(call-with-typechecking t (lambda () ,@body)))
+
+(defun enabled-typechecking (&optional (enable-p t))
+  (setf *typechecking-enabled* enable-p))
