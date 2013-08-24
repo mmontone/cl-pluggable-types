@@ -1,5 +1,11 @@
 (in-package :cl-user)
 
+;; Load the walker system
+
+(load (merge-pathnames
+       "cl-walker/cl-walker.asd"
+       (make-pathname :directory (pathname-directory *load-pathname*))))
+
 (defpackage gradual-system
   (:use :cl :asdf))
   
@@ -37,6 +43,10 @@ OTHER DEALINGS IN THE SOFTWARE."
   :long-description "Gradual typing for Common Lisp"
   :components
   ((:file "package")
-   (:file "gradual"))
+   (:file "gradual")
+   (:file "environment")
+   (:file "typechecking")
+   (:file "inference")
+   (:file "gradual-user"))
   :serial t
   :depends-on (:cl-walker :anaphora :alexandria))

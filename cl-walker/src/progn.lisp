@@ -194,13 +194,13 @@
                          var `(type ,(first arguments))))
 	    ;; Gradual types declarations
 	    ;; These are probably buggy, as I dont know very well what I'm doing. Revise.
-	    (gradual::var-type
+	    (var-type
 	     (extend-env (var (rest arguments))
 			 (make-form-object 'var-type-declaration-form parent
 					   :name (first arguments)
 					   :type var)
 			 (first arguments) `(var-type ,var)))
-	    (gradual::return-type
+	    (return-type
 	     (extend-env (type arguments)
 			 (make-form-object 'return-type-declaration-form parent
 					   :type type)

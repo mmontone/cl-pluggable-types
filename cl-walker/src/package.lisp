@@ -213,6 +213,10 @@
    #:arguments-of
 
    #:collect-standard-walked-form-subclasses
+
+   ;; Gradual typing
+   #:return-type
+   #:var-type
    ))
 
 (in-package :cl-walker)

@@ -24,7 +24,7 @@
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form)))
     (loop for binding in bindings
-	 do (let ((initial-value (initial-value-of binding)))))))
+	 do (let ((initial-value (value-of binding)))))))
 
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)
   (let* ((declarations (declares-of form))

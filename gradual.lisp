@@ -6,6 +6,32 @@
 (defparameter *type-environment* (make-hash-table :test #'equalp))
 (defparameter *walker-environment* (make-walk-environment))
 
+(defvar *typechecking-enabled* nil "When true, typecheck after function definition")
+(defvar *runtime-type-assertions-enabled* t "When true, insert runtime type checks")
+
+(defun call-with-runtype-type-assertions (enabled-p function)
+  (let ((*runtime-type-assertions-enabled* enabled-p))
+    (funcall function)))
+
+(defmacro without-runtime-type-assertions (&body body)
+  `(call-with-runtime-type-assertions nil (lambda () ,@body)))
+
+(defmacro with-runtime-type-assertions (&body body)
+  `(call-with-runtime-type-assertions t (lambda () ,@body)))
+
+(defun call-with-typechecking (enabled-p function)
+  (let ((*typechecking-enabled* enabled-p))
+    (funcall function)))
+
+(defmacro without-typechecking (&body body)
+  `(call-with-typechecking nil (lambda () ,@body)))
+
+(defmacro with-typechecking (&body body)
+  `(call-with-typechecking t (lambda () ,@body)))
+
+(defun enabled-typechecking (&optional (enable-p t))
+  (setf *typechecking-enabled* enable-p))
+
 (defstruct (function-type
 	     (:print-function
 	      (lambda (struct stream depth)
@@ -398,28 +424,3 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	   (when *typechecking-enabled*
 	     (typecheck)))))))
 
-(defvar *typechecking-enabled* nil "When true, typecheck after function definition")
-(defvar *runtime-type-assertions-enabled* t "When true, insert runtime type checks")
-
-(defun call-with-runtype-type-assertions (enabled-p function)
-  (let ((*runtime-type-assertions-enabled* enabled-p))
-    (funcall function)))
-
-(defmacro without-runtime-type-assertions (&body body)
-  `(call-with-runtime-type-assertions nil (lambda () ,@body)))
-
-(defmacro with-runtime-type-assertions (&body body)
-  `(call-with-runtime-type-assertions t (lambda () ,@body)))
-
-(defun call-with-typechecking (enabled-p function)
-  (let ((*typechecking-enabled* enabled-p))
-    (funcall function)))
-
-(defmacro without-typechecking (&body body)
-  `(call-with-typechecking nil (lambda () ,@body)))
-
-(defmacro with-typechecking (&body body)
-  `(call-with-typechecking t (lambda () ,@body)))
-
-(defun enabled-typechecking (&optional (enable-p t))
-  (setf *typechecking-enabled* enable-p))
