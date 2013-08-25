@@ -3,7 +3,7 @@
 (defun typecheck (&optional (output *standard-output*))
   (format output "Typechecking started.~%")
   (handler-bind ((gradual-type-error (lambda (type-error)
-				       (format output "~A ~@{in ~A~}~%" type-error (source type-error))
+				       (format output "TYPE ERROR: ~A ~@{in ~A~}~%" type-error (source type-error))
 				       (continue))))
     (let ((env (make-typing-environment)))
       (loop for key being the hash-keys of *fun-sources*
