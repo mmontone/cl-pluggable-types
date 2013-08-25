@@ -1,13 +1,18 @@
 (in-package :gradual)
 
-(defun typecheck ()
-  (let ((env (make-typing-environment)))
-    (loop for key being the hash-keys of *fun-sources*
-       using (hash-value value)
-       do
-	 (progn
-	   (format t "Typechecking ~A" key)
-	   (%typecheck-form value env)))))
+(defun typecheck (&optional (output *standard-output*))
+  (format output "Typechecking started.~%")
+  (handler-bind ((gradual-type-error (lambda (type-error)
+				       (format output "~A ~@{in ~A~}~%" type-error (source type-error))
+				       (continue))))
+    (let ((env (make-typing-environment)))
+      (loop for key being the hash-keys of *fun-sources*
+	 using (hash-value value)
+	 do
+	   (progn
+	     (format output "Typechecking ~A...~%" key)
+	     (%typecheck-form value env))))
+    (format output "Done.~%")))
 
 (defun typecheck-form (form &optional (typing-environment (make-typing-environment)))
   (let ((walked-form (walk-form form)))
@@ -31,11 +36,11 @@
 	      (let ((value-type (%typecheck-form value typing-environment)))
 		(if (not (or (equalp value-type t)
 			     (subtypep value-type type)))
-		    (format t "~%Type error: ~A should have type ~A but is ~A in ~A"
-			    (name-of binding)
-			    type
-			    value-type
-			    (source-of form)))
+		    (gradual-type-error (source-of form)
+					"~A should have type ~A but is ~A in ~A"
+					(name-of binding)
+					type
+					value-type))
 		(setf let-env (set-env-var-type let-env (name-of binding)
 						value-type)))))
     (%typecheck-form (body-of form) let-env)))		    
@@ -60,10 +65,10 @@
 	   (%typecheck-form (body-of form) fun-env)))
       (when (not (or (equalp body-type t)
 		     (subtypep body-type (function-type-return-type fun-type))))
-	(format t "~%Type error: ~A should return ~A but ~A found."
-		(name-of form)
-		(function-type-return-type fun-type)
-		body-type))
+	(gradual-type-error nil "~A should return ~A but ~A found."
+			    (name-of form)
+			    (function-type-return-type fun-type)
+			    body-type))
       fun-type)))
 
 (defmethod %typecheck-form ((form cons) typing-environment)
@@ -81,7 +86,7 @@
       (if (null operator-type)
 	  ;; No type declared for operator, we are ok then
 	  (progn
-	    (format t "~%Warning: function ~A type has not been declared." operator)
+	    (format t "Warning: function ~A type has not been declared.~%" operator)
 	    (return-from %typecheck-form t))
 	  ;; else, check the operator type signature matches the arguments types
 	  (progn
@@ -91,12 +96,12 @@
 		 (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 		   (when (not (or (equalp actual-arg-type t)
 				  (subtypep actual-arg-type formal-arg-type)))
-		     (format t "~%Type error in ~A: ~A has type ~A but ~A expected in ~A"
-			     operator
-			     (name-of arg)
-			     actual-arg-type
-			     formal-arg-type
-			     (source-of form)))))
+		     (gradual-type-error (source-of form)
+					 "~A has type ~A but ~A expected in ~A"
+					 operator
+					 (name-of arg)
+					 actual-arg-type
+					 formal-arg-type))))
 	    (function-type-return-type operator-type))))))
 
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)

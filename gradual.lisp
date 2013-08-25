@@ -84,14 +84,6 @@
 (defun fun-source (fun-name)
   (gethash fun-name *fun-sources*))
 
-(define-condition gradual-type-error (simple-error)
-  ())
-
-(defun gradual-type-error (message &rest args)
-  (error 'gradual-type-error
-	:format-control message
-	:format-arguments args))
-
 (defmacro $defparameter (var val &optional doc (type 't))
   `(prog1
      (defparameter ,var ,val ,doc)

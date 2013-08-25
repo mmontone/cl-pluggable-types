@@ -44,6 +44,7 @@ OTHER DEALINGS IN THE SOFTWARE."
   :components
   ((:file "package")
    (:file "gradual")
+   (:file "conditions")
    (:file "environment")
    (:file "typechecking")
    (:file "inference")
