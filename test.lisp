@@ -1,7 +1,11 @@
 (defpackage :gradual.test
-  (:use :cl :gradual :fiveam))
+  (:use :cl :gradual :fiveam)
+  (:export #:run-tests))
 
 (in-package :gradual.test)
+
+(defun run-tests ()
+  (5am:run 'gradual.test::gradual-tests))
 
 ;; (gradual::$defparameter *count* 1 "Count" integer)
 
