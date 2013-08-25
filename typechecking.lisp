@@ -97,9 +97,8 @@
 		   (when (not (or (equalp actual-arg-type t)
 				  (subtypep actual-arg-type formal-arg-type)))
 		     (gradual-type-error (source-of form)
-					 "~A has type ~A but ~A expected in ~A"
-					 operator
-					 (name-of arg)
+					 "~A has type ~A but ~A expected"
+					 (source-of arg)
 					 actual-arg-type
 					 formal-arg-type))))
 	    (function-type-return-type operator-type))))))

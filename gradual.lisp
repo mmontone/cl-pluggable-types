@@ -328,6 +328,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 (defmacro $defun (name args &body body)
   (multiple-value-bind (remaining-forms declarations doc-string)
       (parse-body body)
+    (declare (ignore remaining-forms))
     (multiple-value-bind (function-type-declarations
 			  var-type-declarations
 			  return-type-declaration
@@ -383,6 +384,9 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	     ;; TODO: fix the function type
 	     (function-type `(make-function-type :required-args-types ',args-types
 						 :return-type ',return-type))
+	     (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
+				     ,(typed-lambda-list-to-normal args)
+				   ,@body)))
 	     (fbody (if *runtime-type-assertions-enabled*
 			`(progn
 			   ,@(multiple-value-bind (required-args optional-args
@@ -397,11 +401,11 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 						     collect `(check-gradual-type ,arg ',arg-type)))
 			   ,(if (not (equalp return-type t))
 				(with-unique-names (result)
-				  `(let ((,result (progn ,@remaining-forms)))
+				  `(let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
 				     (check-gradual-type ,result ',return-type)
 				     ,result))
-				`(progn ,@remaining-forms)))
-			`(progn ,@remaining-forms))))
+				`(progn ,@(mapcar #'unwalk-form (body-of source)))))
+			`(progn ,@(mapcar #'unwalk-form (body-of source))))))
 	`(progn
 	   (set-fun-type ',name ,function-type)
 	   (set-fun-source ',name (walk-form '(defun ,name ;; ,args  -- Use this eventually
@@ -415,4 +419,3 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	     ,fbody)
 	   (when *typechecking-enabled*
 	     (typecheck)))))))
-

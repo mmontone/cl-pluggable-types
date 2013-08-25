@@ -107,13 +107,13 @@
   ())
 
 (defunwalker-handler var-type-declaration-form (type name)
-  `(var-type ,type ,name))
+  `(type ,type ,name))
 
 (defclass return-type-declaration-form (declaration-form type-declaration-form)
   ())
 
 (defunwalker-handler return-type-declaration-form (type)
-  `(return-type ,type))
+  '(ignore))
 
 (defclass ftype-declaration-form (function-declaration-form)
   ((type :accessor type-of :initarg :type)))

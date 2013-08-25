@@ -48,6 +48,7 @@ OTHER DEALINGS IN THE SOFTWARE."
    (:file "environment")
    (:file "typechecking")
    (:file "inference")
+   (:file "types")
    (:file "gradual-user"))
   :serial t
   :depends-on (:cl-walker :anaphora :alexandria))
