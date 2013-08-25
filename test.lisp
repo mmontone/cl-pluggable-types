@@ -82,6 +82,8 @@
 	     NIL
 	     NIL
 	     NIL)))
+  
+  ;; Optionals
   (is (equalp
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer))))
@@ -114,7 +116,68 @@
 	NIL
 	NIL
 	NIL
-	NIL))))
+	NIL)))
+
+  ;; Keyword
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer))))
+       (list
+	'((A STRING))
+	NIL
+	NIL
+	'(((:X X) 33 INTEGER))
+	NIL
+	NIL
+	T)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer x-supplied-p))))
+       (list
+	'((A STRING))
+	NIL
+	NIL
+	'(((:X X) 33 INTEGER X-SUPPLIED-P))
+	NIL
+	NIL
+	T)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &key x)))
+       (list
+	'((A STRING))
+	NIL
+	NIL
+	'(((:X X) NIL T))
+	NIL
+	NIL
+	T)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &key ((:x var) 22 integer))))
+       (list
+	'((A STRING))
+	NIL
+	NIL
+	'(((:X VAR) 22 INTEGER))
+	NIL
+	NIL
+	T)))
+
+  ;; Rest
+  #+nil(is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &rest (nums integer))))
+       (list
+	'((A STRING))
+	NIL
+	NIL
+	'(((:X VAR) 22 INTEGER))
+	NIL
+	NIL
+	T)))
+  
+  )
 
 (def-test types-lambda-list ()
   (is (equalp
@@ -127,5 +190,33 @@
 	 NIL
 	 NIL
 	 NIL)))
+  (is (equalp
+       (multiple-value-list 
+	(gradual::parse-types-lambda-list '(integer &optional integer)))
+       '((INTEGER)
+	 (INTEGER)
+	 NIL
+	 NIL
+	 NIL
+	 NIL
+	 NIL)))
+  (is (equalp
+       (multiple-value-list 
+	(gradual::parse-types-lambda-list '(integer &key (x integer))))
+       '((INTEGER)
+	 NIL
+	 ((X . INTEGER))
+	 NIL
+	 NIL
+	 NIL
+	 NIL)))
+  (signals error
+    (gradual::parse-types-lambda-list '(integer &optional (x integer))))
+  (signals error
+    (gradual::parse-types-lambda-list '(integer &key (x 22))))
+  (signals error
+    (gradual::parse-types-lambda-list '(integer &key (x integer 20))))
+  (signals error
+    (gradual::parse-types-lambda-list '(integer &key integer)))
   (signals error
     (gradual::parse-types-lambda-list '(2 2))))

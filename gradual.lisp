@@ -150,14 +150,17 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                             (not (constantp elt)))
                  (simple-program-error "Invalid ~A ~S in gradual lambda-list:~%  ~S"
                                        what elt lambda-list)))
-	     (check-type-spec (type)
+	     (check-type-spec (type what)
 	       (unless (symbolp type)
-		 (simple-program-error "Invalid type spec ~A" type)))
+		 (simple-program-error "Invalid ~A type spec ~A in typed lambda list:~% ~S"
+				       what
+				       type
+				       lambda-list)))
              (check-spec (spec what)
                (destructuring-bind (init &optional type suppliedp) spec
                  (declare (ignore init))
 		 (when type
-		   (check-type-spec type))
+		   (check-type-spec type what))
 		 (when suppliedp
 		   (check-variable suppliedp what nil)))))
       (dolist (elt lambda-list)
@@ -201,7 +204,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	      (if (listp elt)
 		  (progn
 		    (check-variable (first elt) "required parameter")
-		    (check-type-spec (second elt))
+		    (check-type-spec (second elt) "required parameter")
 		    (push elt required))
 		  (progn
 		    (check-variable elt "required parameter")
@@ -220,9 +223,16 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                        (setf elt (cons elt '(nil t))))))
               (push (ensure-list elt) optional))
              (&rest
-              (check-variable elt "rest parameter")
-              (setf rest elt
-                    state :after-rest))
+	      (if (consp elt)
+		  (destructuring-bind (var type) elt
+		    (check-variable var "rest parameter")
+		    (check-type-spec type "rest parameter")
+		    (setf rest elt))
+		  ;; else
+		  (progn
+		    (check-variable elt "rest parameter")
+		    (setf rest (list elt t))))
+	      (setf state :after-rest))
              (&key
               (cond ((consp elt)
                      (destructuring-bind (var-or-kv &rest tail) elt
@@ -236,7 +246,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                              (t
                               (check-variable var-or-kv "keyword parameter")
                               (when normalize-keyword
-                                ;(setf var-or-kv (list (make-keyword var-or-kv) var-or-kv))
+                                (setf var-or-kv (list (make-keyword var-or-kv) var-or-kv))
 				)))
                        (if (cdr tail)
                            (check-spec tail "keyword-supplied-p parameter")
