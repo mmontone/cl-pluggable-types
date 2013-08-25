@@ -4,10 +4,9 @@
 	   :var-type
 	   :return-type
 	   :defun-type
-	   :typecheck))
+	   :typecheck
+	   :infer-type))
 
-(DEFPACKAGE :gradual-user
+(defpackage :gradual-user
   (:shadow :defun :defparameter)
-  (:USE :CL :gradual))
-
-
+  (:use :cl :gradual))

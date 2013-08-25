@@ -1,49 +1,72 @@
-(in-package :gradual)
+(defpackage :gradual.test
+  (:use :cl :gradual :fiveam))
 
-($defparameter *count* 1 "Count" integer)
+(in-package :gradual.test)
 
-($defparameter *count* 22423 "Count" integer)
+;; (gradual::$defparameter *count* 1 "Count" integer)
 
-($defparameter *count* 1 "Count" number)
+;; (gradual::$defparameter *count* 22423 "Count" integer)
 
-($defparameter *count3* (make-hash-table) "Count" hash-table)
+;; (gradual::$defparameter *count* 1 "Count" number)
 
-(var-type '*count*)
+;; (gradual::$defparameter *count3* (make-hash-table) "Count" hash-table)
 
-($defparameter *count2* 1 "Count")
+;; (var-type '*count*)
 
-(var-type '*count2*)
+;; (gradual::$defparameter *count2* 1 "Count")
 
-(check-gradual-type *count* 'integer)
-(check-gradual-type *count* 'number)
+;; (var-type '*count2*)
 
-($setq *count* 22)
-($setq *count* t)
+;; (check-gradual-type *count* 'integer)
+;; (check-gradual-type *count* 'number)
 
-($defparameter *question* t "" boolean)
+;; (gradual::$setq *count* 22)
+;; (gradual::$setq *count* t)
 
-($setq *question* 2)
-($setq *question* t)
+;; (gradual::$defparameter *question* t "" boolean)
 
-($defun concatenate-strings ((str1 string) (str2 string))
+;; (gradual::$setq *question* 2)
+;; (gradual::$setq *question* t)
+
+(gradual::$defun concatenate-strings ((str1 string) (str2 string))
   (declare (return-type string))
   (concatenate 'string str1 str2))
 
 (infer-type
- (walk-form
+ (gradual::walk-form
   '(concatenate-strings "s1" "s2")))
 
 (infer-type
- (walk-form '(lambda (x)
+ (gradual::walk-form '(lambda (x)
 	      (declare (var-type x integer))
 	      x)))
 
 (infer-type
- (walk-form
+ (gradual::walk-form
   '(lambda (x)
     x)))
 
 (infer-type
- (walk-form
+ (gradual::walk-form
   '(lambda ((x string))
     x)))
+
+(setf *run-test-when-defined* t)
+
+(def-suite gradual-tests :description "Gradual typing tests")
+
+(in-suite gradual-tests)
+
+(def-test types-lambda-list ()
+  (is (equalp
+       (multiple-value-list 
+	(gradual::parse-types-lambda-list '(integer integer)))
+       '((INTEGER INTEGER)
+	 NIL
+	 NIL
+	 NIL
+	 NIL
+	 NIL
+	 NIL)))
+  (signals error
+    (gradual::parse-types-lambda-list '(2 2))))
