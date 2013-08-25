@@ -150,13 +150,16 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                             (not (constantp elt)))
                  (simple-program-error "Invalid ~A ~S in gradual lambda-list:~%  ~S"
                                        what elt lambda-list)))
-             (check-spec (spec what)
-               (destructuring-bind (init suppliedp) spec
-                 (declare (ignore init))
-                 (check-variable suppliedp what nil)))
 	     (check-type-spec (type)
 	       (unless (symbolp type)
-		 (simple-program-error "Invalid type spec ~A" type))))
+		 (simple-program-error "Invalid type spec ~A" type)))
+             (check-spec (spec what)
+               (destructuring-bind (init &optional type suppliedp) spec
+                 (declare (ignore init))
+		 (when type
+		   (check-type-spec type))
+		 (when suppliedp
+		   (check-variable suppliedp what nil)))))
       (dolist (elt lambda-list)
         (case elt
           (&optional

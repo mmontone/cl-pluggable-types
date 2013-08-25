@@ -57,6 +57,61 @@
 
 (in-suite gradual-tests)
 
+(def-test typed-lambda-list ()
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '(a)))
+       (list '((A T))
+	     NIL
+	     NIL
+	     NIL
+	     NIL
+	     NIL
+	     NIL)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a integer))))
+       (list '((A INTEGER))
+	     NIL
+	     NIL
+	     NIL
+	     NIL
+	     NIL
+	     NIL)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer))))
+       (list
+	'((A STRING))
+	'((X 33 INTEGER))
+	NIL
+	NIL
+	NIL
+	NIL
+	NIL)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer x-supplied-p))))
+       (list
+	'((A STRING))
+	'((X 33 INTEGER X-SUPPLIED-P))
+	NIL
+	NIL
+	NIL
+	NIL
+	NIL)))
+  (is (equalp
+       (multiple-value-list
+	(gradual::parse-typed-lambda-list '((a string) &optional x)))
+       (list
+	'((A STRING))
+	'((X NIL T))
+	NIL
+	NIL
+	NIL
+	NIL
+	NIL))))
+
 (def-test types-lambda-list ()
   (is (equalp
        (multiple-value-list 
