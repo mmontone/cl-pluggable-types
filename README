@@ -1,0 +1,8 @@
+Roadmap:
+1) Functions typespecs (arity, optional and keyword args, etc)
+2) Add type specs to common-lisp package functions
+3) Try to type a big module (replace :use :cl by :use :gradual)
+4) Tests
+5) CLOS, structs
+6) Polymorphism
+7) Inference
