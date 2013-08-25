@@ -30,6 +30,14 @@
        (setf type (%typecheck-form body-form typing-environment))
        finally (return type)))
 
+(defun more-specific-type (type1 type2)
+  (if (not (or (subtypep type1 type2)
+	       (subtypep type2 type1)))
+	   (error "Cant decide between ~A and ~A" type1 type2))
+  (if (subtypep type1 type2)
+      type1
+      type2))
+
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form))
 	(let-env typing-environment))
@@ -41,12 +49,15 @@
 		(if (not (or (equalp value-type t)
 			     (subtypep value-type type)))
 		    (gradual-type-error (source-of form)
-					"~A should have type ~A but is ~A in ~A"
+					"~A should have type ~A but is ~A"
 					(name-of binding)
 					type
 					value-type))
-		(setf let-env (set-env-var-type let-env (name-of binding)
-						value-type)))))
+		(setf let-env (set-env-var-type let-env
+						(name-of binding)
+						(or (cl-walker::type-spec binding)
+						    value-type)
+						)))))
     (%typecheck-form (body-of form) let-env)))		    
 
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)

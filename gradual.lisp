@@ -32,6 +32,9 @@
 (defun enable-typechecking (&optional (enable-p t))
   (setf *typechecking-enabled* enable-p))
 
+(defun enable-debugging (&optional (enable-p t))
+  (setf *debug* enable-p))
+
 (defstruct (function-type
 	     (:print-function
 	      (lambda (struct stream depth)
@@ -418,4 +421,5 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			  declarations :key #'caadr)
 	     ,fbody)
 	   (when *typechecking-enabled*
-	     (typecheck)))))))
+	     (typecheck))
+	   ',name)))))
