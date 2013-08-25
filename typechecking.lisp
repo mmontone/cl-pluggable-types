@@ -1,7 +1,10 @@
 (in-package :gradual)
 
+(defvar *debug* nil)
+
 (defun typecheck (&optional (output *standard-output*))
-  (format output "Typechecking started.~%")
+  (when *debug*
+    (format output "Typechecking started.~%"))
   (handler-bind ((gradual-type-error (lambda (type-error)
 				       (format output "TYPE ERROR: ~A ~@{in ~A~}~%" type-error (source type-error))
 				       (continue))))
@@ -10,9 +13,10 @@
 	 using (hash-value value)
 	 do
 	   (progn
-	     (format output "Typechecking ~A...~%" key)
+	     (when *debug*
+	       (format output "Typechecking ~A...~%" key))
 	     (%typecheck-form value env))))
-    (format output "Done.~%")))
+    (when *debug* (format output "Done.~%"))))
 
 (defun typecheck-form (form &optional (typing-environment (make-typing-environment)))
   (let ((walked-form (walk-form form)))
@@ -86,7 +90,7 @@
       (if (null operator-type)
 	  ;; No type declared for operator, we are ok then
 	  (progn
-	    (format t "Warning: function ~A type has not been declared.~%" operator)
+	    (when *debug* (format t "Warning: function ~A type has not been declared.~%" operator))
 	    (return-from %typecheck-form t))
 	  ;; else, check the operator type signature matches the arguments types
 	  (progn

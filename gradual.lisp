@@ -29,7 +29,7 @@
 (defmacro with-typechecking (&body body)
   `(call-with-typechecking t (lambda () ,@body)))
 
-(defun enabled-typechecking (&optional (enable-p t))
+(defun enable-typechecking (&optional (enable-p t))
   (setf *typechecking-enabled* enable-p))
 
 (defstruct (function-type
