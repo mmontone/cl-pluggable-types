@@ -7,17 +7,17 @@
 (defun run-tests ()
   (5am:run 'gradual.test::gradual-tests))
 
-;; (gradual::$defparameter *count* 1 "Count" integer)
+;; (gradual::typed-defparameter *count* 1 "Count" integer)
 
-;; (gradual::$defparameter *count* 22423 "Count" integer)
+;; (gradual::typed-defparameter *count* 22423 "Count" integer)
 
-;; (gradual::$defparameter *count* 1 "Count" number)
+;; (gradual::typed-defparameter *count* 1 "Count" number)
 
-;; (gradual::$defparameter *count3* (make-hash-table) "Count" hash-table)
+;; (gradual::typed-defparameter *count3* (make-hash-table) "Count" hash-table)
 
 ;; (var-type '*count*)
 
-;; (gradual::$defparameter *count2* 1 "Count")
+;; (gradual::typed-defparameter *count2* 1 "Count")
 
 ;; (var-type '*count2*)
 
@@ -27,12 +27,12 @@
 ;; (gradual::$setq *count* 22)
 ;; (gradual::$setq *count* t)
 
-;; (gradual::$defparameter *question* t "" boolean)
+;; (gradual::typed-defparameter *question* t "" boolean)
 
 ;; (gradual::$setq *question* 2)
 ;; (gradual::$setq *question* t)
 
-(gradual::$defun concatenate-strings ((str1 string) (str2 string))
+(gradual::typed-defun concatenate-strings ((str1 string) (str2 string))
   (declare (return-type string))
   (concatenate 'string str1 str2))
 

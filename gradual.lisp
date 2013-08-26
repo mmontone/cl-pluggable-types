@@ -90,7 +90,7 @@
 (defun fun-source (fun-name)
   (gethash fun-name *fun-sources*))
 
-(defmacro $defparameter (var val &optional doc (type 't))
+(defmacro typed-defparameter (var val &optional doc (type 't))
   `(prog1
      (defparameter ,var ,val ,doc)
      (when (not (check-gradual-type ,var ',type))
@@ -301,7 +301,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	    (when aux
 	      (cons '&aux aux)))))
 
-#+nil(defmacro $defun (name args return-type &body body)
+#+nil(defmacro typed-defun (name args return-type &body body)
   (multiple-value-bind (required-vars-spec)
       (parse-typed-lambda-list args)
     (let ((required-types (mapcar #'second required-vars-spec))
@@ -344,7 +344,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 ;; Comment: maybe we should consider replacing the :any type by t ? (the supertype of every type)
 
-(defmacro $defun (name args &body body)
+(defmacro typed-defun (name args &body body)
   (multiple-value-bind (remaining-forms declarations doc-string)
       (parse-body body)
     (declare (ignore remaining-forms))
@@ -591,4 +591,6 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defmacro fun (args-types return-type)
   `(parse-function-type-spec '(fun ,args-types ,return-type)))
-  
+
+(defmacro @ (&rest args)
+    `(declare ,@args))
