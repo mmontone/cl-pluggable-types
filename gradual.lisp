@@ -354,91 +354,96 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			  other-declarations)
 	(extract-type-declarations declarations)
       (declare (ignore other-declarations))
-      (when function-type-declarations
-	(warn "~A doesn't make sense here" function-type-declarations))
-      (let* ((return-type (or (and return-type-declaration
-				   (destructuring-bind (DECLARE (RETURN-TYPE type))
-				       return-type-declaration
-				     (declare (ignore declare return-type))
-				     type))
-			      t))
-	     (args-types (multiple-value-bind (required-args optional-args
-							     rest-arg key-args)
-			     (parse-typed-lambda-list args)
-			   (declare (ignore rest-arg))
-			   (mapcar (lambda (arg)
-				     (let ((declared-type (or
-							   (aand
-							    (find arg var-type-declarations
-								  :key (lambda (declaration)
-									 (destructuring-bind (declare (var-type var type)) declaration
-									   (declare (ignore declare var-type type))
-									   var)))
-							    (destructuring-bind (declare (var-type var type))
-								it
-							      (declare (ignore declare var-type var))
-							      type))
-							   t))
-					   (lambda-list-type (or (aand (find arg (append required-args
-										     optional-args
-										     key-args)
-									 :key #'first)
-								   (if (equalp (length it) 2)
-								       (second it)
-								       (third it)))
-								 t)))
-				       (when (not (or (and (equalp lambda-list-type t)
-							   (equalp declared-type t))
-						      (or (equalp lambda-list-type t)
-							  (equalp declared-type t))))
-					 (error "Duplicate type declaration for ~A. Declaration type: ~A lambda list type: ~A"
-						arg declared-type lambda-list-type))
-				       (or (and (equalp lambda-list-type t)
-						declared-type)
-					   (and (equalp declared-type t)
-						lambda-list-type))))
-				   (mapcar #'first (append required-args
-							   optional-args
-							   key-args)))))
-	     ;; TODO: fix the function type
-	     (function-type `(make-function-type :required-args-types ',args-types
-						 :return-type ',return-type))
-	     (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
-				     ,(typed-lambda-list-to-normal args)
-				   ,@body)))
-	     (fbody (if *runtime-type-assertions-enabled*
-			`(progn
-			   ,@(multiple-value-bind (required-args optional-args
-								 rest-arg key-args)
-						  (parse-typed-lambda-list args)
-						  (declare (ignore rest-arg))
-						  (loop for arg in (mapcar #'first (append required-args
-											   optional-args
-											   key-args))
-						     for arg-type in args-types
-						     when (not (equalp arg-type t))
-						     collect `(check-gradual-type ,arg ',arg-type)))
-			   ,(if (not (equalp return-type t))
-				(with-unique-names (result)
-				  `(let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
-				     (check-gradual-type ,result ',return-type)
-				     ,result))
-				`(progn ,@(mapcar #'unwalk-form (body-of source)))))
-			`(progn ,@(mapcar #'unwalk-form (body-of source))))))
-	`(progn
-	   (set-fun-type ',name ,function-type)
-	   (set-fun-source ',name (walk-form '(defun ,name ;; ,args  -- Use this eventually
-					       ,(typed-lambda-list-to-normal args)
-					       ,@body)))
-	   (defun ,name ,(typed-lambda-list-to-normal args)
-	     ,doc-string
-	     ,@(remove-if (lambda (declaration)
-			    (member declaration (list 'function-type 'return-type 'var-type)))
-			  declarations :key #'caadr)
-	     ,fbody)
-	   (when *typechecking-enabled*
-	     (typecheck))
-	   ',name)))))
+      (multiple-value-bind (required-args
+			    optional-args
+			    rest-arg key-args)
+	  (parse-typed-lambda-list args)
+	(flet ((read-arg-type (arg)
+		 (let ((declared-type
+			(or
+			 (aand
+			  (find arg var-type-declarations
+				:key (lambda (declaration)
+				       (destructuring-bind (declare (var-type var type)) declaration
+					 (declare (ignore declare var-type type))
+					 var)))
+			  (destructuring-bind (declare (var-type var type))
+			      it
+			    (declare (ignore declare var-type var))
+			    type))
+			 t))
+		       (lambda-list-type (or (aand (or (find arg (append required-args
+									 optional-args)
+							     :key #'first)
+						       (find arg key-args
+							     :key (compose #'second #'first)))
+						   (if (equalp (length it) 2)
+						       (second it)
+						       (third it)))
+					     t)))
+		   (when (not (or (and (equalp lambda-list-type t)
+				       (equalp declared-type t))
+				  (or (equalp lambda-list-type t)
+				      (equalp declared-type t))))
+		     (error "Duplicate type declaration for ~A. Declaration type: ~A lambda list type: ~A"
+			    arg declared-type lambda-list-type))
+		   (or (and (equalp lambda-list-type t)
+			    declared-type)
+		       (and (equalp declared-type t)
+			    lambda-list-type)))))
+	  (when function-type-declarations
+	    (warn "~A doesn't make sense here" function-type-declarations))
+	  (let* ((return-type (or (and return-type-declaration
+				       (destructuring-bind (DECLARE (RETURN-TYPE type))
+					   return-type-declaration
+					 (declare (ignore declare return-type))
+					 type))
+				  t))
+		 (required-args-types (mapcar #'read-arg-type (mapcar #'first required-args)))
+		 (optional-args-types (mapcar #'read-arg-type (mapcar #'first optional-args)))
+		 (keyword-args-types (mapcar (lambda (arg)
+					       (cons arg
+						     (read-arg-type arg)))
+					     (mapcar (compose #'second #'first) key-args)))
+		 (rest-arg-type (when rest-arg (read-arg-type (mapcar #'first rest-arg))))
+		 (function-type `(make-function-type :required-args-types ',required-args-types
+						     :optional-args-types ',optional-args-types
+						     :keyword-args-types ',keyword-args-types
+						     :rest-arg-type ',rest-arg-type
+						     :return-type ',return-type))
+		 (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
+					 ,(typed-lambda-list-to-normal args)
+				       ,@body)))
+		 (fbody (if *runtime-type-assertions-enabled*
+			    `(progn
+			       ,@(loop for arg in (append (mapcar #'first required-args)
+							  (mapcar #'first optional-args)
+							  (mapcar (compose #'second #'first) key-args)
+							  (when rest-arg (list rest-arg)))
+				    for arg-type = (read-arg-type arg)
+				    when (not (equalp arg-type t))
+				    collect `(check-gradual-type ,arg ',arg-type))
+			       ,@(if (not (equalp return-type t))
+				     (with-unique-names (result)
+				       `((let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
+					   (check-gradual-type ,result ',return-type)
+					   ,result)))
+				     (mapcar #'unwalk-form (body-of source))))
+			    `(progn ,@(mapcar #'unwalk-form (body-of source))))))
+	    `(progn
+	       (set-fun-type ',name ,function-type)
+	       (set-fun-source ',name (walk-form '(defun ,name ;; ,args  -- Use this eventually
+						   ,(typed-lambda-list-to-normal args)
+						   ,@body)))
+	       (defun ,name ,(typed-lambda-list-to-normal args)
+		 ,@(when doc-string (list doc-string))
+		 ,@(remove-if (lambda (declaration)
+				(member declaration (list 'function-type 'return-type 'var-type)))
+			      declarations :key #'caadr)
+		 ,fbody)
+	       (when *typechecking-enabled*
+		 (typecheck))
+	       ',name)))))))
 
 (defun parse-types-lambda-list (lambda-list &key (normalize t)
 					      allow-specializers

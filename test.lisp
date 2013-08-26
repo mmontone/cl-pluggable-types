@@ -220,3 +220,24 @@
     (gradual::parse-types-lambda-list '(integer &key integer)))
   (signals error
     (gradual::parse-types-lambda-list '(2 2))))
+
+(def-test typed-defun ()
+  (gradual::typed-defun hello ((x string))
+    (declare (return-type string))
+    x)
+  (is (equalp
+       (fun-type 'hello)
+       (fun (string) string)))
+
+  (gradual::typed-defun hello ((x integer) &optional (y "ok" string))
+    (declare (return-type integer))
+    x)
+  (is (equalp
+       (fun-type 'hello)
+       (fun (integer &optional string) integer)))
+
+  (gradual::typed-defun hello ((x string) &key (y nil boolean))
+    (declare (return-type integer))
+    22)
+  (is (equalp (fun-type 'hello)
+	      (fun (string &key (y boolean)) integer))))
