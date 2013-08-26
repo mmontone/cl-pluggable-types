@@ -45,7 +45,10 @@
 				  (format nil " &optional ~{~a~^ ~}" it))
 			    "")
 			(or (aand (function-type-keyword-args-types struct)
-				  (format nil " &key ~{~a~^ ~}" it))
+				  (with-output-to-string (s)
+				    (format s " &key ")
+				    (loop for (var . type) in it
+				       do (format s "(~A ~A)" var type))))
 			    "")
 			(or (aand (function-type-rest-arg-type struct)
 				  (format nil " &rest ~A" it))
@@ -565,3 +568,24 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
     (values (nreverse required) (nreverse optional) rest (nreverse keys)
             allow-other-keys (nreverse aux) keyp)))
+
+(defun parse-function-type-spec (spec)
+  (when (not (and (consp spec)
+		  (equalp (first spec) 'function)
+		  (equalp (length spec) 3)))
+    (simple-program-error "Invalid function type spec ~S" spec))
+  (destructuring-bind (function args return-type) spec
+    (declare (ignore function))
+    (when (not (symbolp return-type))
+      (simple-program-error "Invalid return type ~A in ~S" return-type spec))
+    (multiple-value-bind (required-args-types
+			  optional-args-types
+			  rest-arg-type
+			  keyword-args-types)
+	(parse-types-lambda-list args)
+      (make-function-type :required-args-types required-args-types
+			  :optional-args-types optional-args-types
+			  :keyword-args-types keyword-args-types
+			  :rest-arg-type rest-arg-type
+			  :return-type return-type))))
+  
