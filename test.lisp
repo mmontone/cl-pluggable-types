@@ -205,11 +205,11 @@
 	(gradual::parse-types-lambda-list '(integer &key (x integer))))
        '((INTEGER)
 	 NIL
+	 NIL
 	 ((X . INTEGER))
 	 NIL
 	 NIL
-	 NIL
-	 NIL)))
+	 T)))
   (signals error
     (gradual::parse-types-lambda-list '(integer &optional (x integer))))
   (signals error

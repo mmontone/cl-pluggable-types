@@ -487,7 +487,13 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
              (check-spec (spec what)
                (destructuring-bind (init suppliedp) spec
                  (declare (ignore init))
-                 (check-variable suppliedp what nil))))
+                 (check-variable suppliedp what nil)))
+	     (check-type-spec (type what)
+	       (unless (symbolp type)
+		 (simple-program-error "Invalid ~A type spec ~A in types lambda list:~% ~S"
+				       what
+				       type
+				       lambda-list))))
       (dolist (elt lambda-list)
         (case elt
           (&optional
@@ -526,50 +532,25 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               elt lambda-list))
            (case state
              (:required
-              (check-variable elt "required parameter")
+              (check-type-spec elt "required parameter")
               (push elt required))
              (&optional
-              (cond ((consp elt)
-                     (destructuring-bind (name &rest tail) elt
-                       (check-variable name "optional parameter")
-                       (cond ((cdr tail)
-                              (check-spec tail "optional-supplied-p parameter"))
-                             (normalize-optional
-                              (setf elt (append elt '(nil)))))))
-                    (t
-                     (check-variable elt "optional parameter")
-                     (when normalize-optional
-                       (setf elt (cons elt '(nil nil))))))
-              (push (ensure-list elt) optional))
+	      (check-type-spec elt "optional parameter")
+	      (push elt optional))
              (&rest
-              (check-variable elt "rest parameter")
+              (check-type-spec elt "rest parameter")
               (setf rest elt
                     state :after-rest))
              (&key
-              (cond ((consp elt)
-                     (destructuring-bind (var-or-kv &rest tail) elt
-                       (cond ((consp var-or-kv)
-                              (destructuring-bind (keyword var) var-or-kv
-                                (unless (symbolp keyword)
-                                  (simple-program-error "Invalid keyword name ~S in types ~
-                                                         lambda-list:~%  ~S"
-                                                        keyword lambda-list))
-                                (check-variable var "keyword parameter")))
-                             (t
-                              (check-variable var-or-kv "keyword parameter")
-                              (when normalize-keyword
-                                (setf var-or-kv (list (make-keyword var-or-kv) var-or-kv)))))
-                       (if (cdr tail)
-                           (check-spec tail "keyword-supplied-p parameter")
-                           (when normalize-keyword
-                             (setf tail (append tail '(nil)))))
-                       (setf elt (cons var-or-kv tail))))
-                    (t
-                     (check-variable elt "keyword parameter")
-                     (setf elt (if normalize-keyword
-                                   (list (list (make-keyword elt) elt) nil nil)
-                                   elt))))
-              (push elt keys))
+	      (when (not (and (consp elt)
+			      (equalp (length elt) 2)))
+		(simple-program-error "Invalid keyword type spec ~A in lambda-list:~% ~S"
+				      elt
+				      lambda-list))
+	      (destructuring-bind (var type) elt
+		(check-variable var "keyword parameter")
+		(check-type-spec type "keyword parameter")
+		(push (cons (car elt) (cadr elt)) keys)))
              (&aux
               (if (consp elt)
                   (destructuring-bind (var &optional init) elt
@@ -584,4 +565,3 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
     (values (nreverse required) (nreverse optional) rest (nreverse keys)
             allow-other-keys (nreverse aux) keyp)))
-
