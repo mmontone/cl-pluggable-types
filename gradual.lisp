@@ -39,7 +39,7 @@
 	     (:print-function
 	      (lambda (struct stream depth)
 		(declare (ignore depth))
-		(format stream "(FUNCTION (~A~A~A~A) ~A)"
+		(format stream "(FUN (~A~A~A~A) ~A)"
 			(format nil "~{~a~^ ~}" (function-type-required-args-types struct))
 			(or (aand (function-type-optional-args-types struct)
 				  (format nil " &optional ~{~a~^ ~}" it))
@@ -571,7 +571,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 
 (defun parse-function-type-spec (spec)
   (when (not (and (consp spec)
-		  (equalp (first spec) 'function)
+		  (equalp (first spec) 'fun)
 		  (equalp (length spec) 3)))
     (simple-program-error "Invalid function type spec ~S" spec))
   (destructuring-bind (function args return-type) spec
@@ -588,4 +588,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			  :keyword-args-types keyword-args-types
 			  :rest-arg-type rest-arg-type
 			  :return-type return-type))))
+
+(defmacro fun (args-types return-type)
+  `(parse-function-type-spec '(fun ,args-types ,return-type)))
   

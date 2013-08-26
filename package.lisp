@@ -5,7 +5,8 @@
 	   :return-type
 	   :defun-type
 	   :typecheck
-	   :infer-type))
+	   :infer-type
+	   :fun))
 
 (defpackage :gradual-user
   (:shadow :defun :defparameter)
