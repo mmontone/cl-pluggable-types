@@ -298,5 +298,20 @@
        (gradual::%typecheck-form
 	(gradual::walk-form '(f3 22 :y "hello"))
 	(gradual::make-typing-environment))
-       'boolean)))
+       'boolean))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f3 22 :z t :y "bye"))
+	(gradual::make-typing-environment))
+       'boolean))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f3 22 :z nil))
+	(gradual::make-typing-environment))
+       'boolean))
+  (signals gradual-type-error
+    (gradual::%typecheck-form
+     (gradual::walk-form '(f3 22 :z 22))
+     (gradual::make-typing-environment))))
+      
        

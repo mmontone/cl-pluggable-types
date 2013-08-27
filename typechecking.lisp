@@ -140,8 +140,8 @@
 				  (keywordp (value-of key)))
 			     nil
 			     "~A is not a keyword argument" key)
-		     (let ((formal-arg-type (cdr (assoc (value-of key)
-							(function-type-keyword-args-types operator-type)))))
+		     (let ((formal-arg-type (cdr (assoc (symbol-name (value-of key))
+							(function-type-keyword-args-types operator-type) :key #'symbol-name :test #'equalp))))
 		       (assert formal-arg-type nil "Keyword type for ~A not found" key)
 		       (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 			 (check-argument-types arg actual-arg-type formal-arg-type)))
