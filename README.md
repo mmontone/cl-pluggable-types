@@ -2,10 +2,20 @@ Implementation of a [pluggable](http://bracha.org/pluggable-types.pdf "Pluggable
 
 Status: THIS IS VAPORWARE AND I DON'T KNOW WHAT I'M DOING.
 
-Resources:
+Papers:
+
+* [Gradual Typing for Functional Languages](http://www.cs.colorado.edu/~siek/pubs/pubs/2006/siek06:_gradual.pdf)
+* [Pluggable type systems](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.175.1460)
+* [Static typing where possible, dynamic typing when needed: the end of the cold war between programming languages](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.69.5966&rep=rep1&type=pdf)
+* [Typed Scheme: From Scripts to Programs](http://www.ccs.neu.edu/racket/pubs/dissertation-tobin-hochstadt.pdf)
+* [Languages as Libraries](http://www.cs.utah.edu/plt/publications/pldi11-tscff.pdf)
+* [Gradual typing for Smalltalk](http://pleiad.cl/research/publications?key=allendeAl-scp2013)
+
+Other implementations:
 
 * [An optional type system for Clojure](https://github.com/clojure/core.typed)
 * [Typed Racket](http://docs.racket-lang.org/ts-guide/)
+* [GradualTalk: A Practical Gradual Type System For Smalltalk](http://pleiad.cl/research/software/gradualtalk)
 
 Plan:
 
