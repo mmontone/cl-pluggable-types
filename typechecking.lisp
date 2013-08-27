@@ -2,6 +2,9 @@
 
 (defvar *debug* nil)
 
+(defun enable-debugging (&optional (enable-p t))
+  (setf *debug* enable-p))
+
 (defun typecheck (&optional (output *standard-output*))
   (when *debug*
     (format output "Typechecking started.~%"))
