@@ -265,7 +265,8 @@
 
     ;; optional args types
     (gradual::typed-defun f2 ((x integer) &optional (y nil string))
-      (declare (return-type integer)))
+      (declare (return-type integer))
+      22)
     (is-typed (f2 22) integer)
     (is-typed (f2 22 "asdf") integer)
     (signals-type-error (f2 22 23))

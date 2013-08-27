@@ -168,3 +168,21 @@
 
 (defmethod %typecheck-form ((form constant-form) typing-environment)
   (type-of (value-of form)))
+
+(defmethod %typecheck-form ((form if-form) typing-environment)
+  (%typecheck-form (condition-of form) typing-environment)
+  (let ((then-type (%typecheck-form (then-of form) typing-environment))
+	(else-type (%typecheck-form (else-of form) typing-environment)))
+    `(or ,then-type ,else-type)))
+
+(defmethod %typecheck-form ((form the-form) typing-environment)
+  (let ((value-type (%typecheck-form (value-of form) typing-environment))
+	(declared-type (cl-walker::type-of form)))
+    (when (not (or (equalp value-type t)
+		   (equalp declared-type t)
+		   (subtypep value-type declared-type)))
+      (gradual-type-error (source-of form)
+			  "~A has type ~A but ~A expected"
+			  (value-of form)
+			  value-type
+			  declared-type))))
