@@ -283,6 +283,17 @@
     (is-typed (f3 22 :y "hello") boolean)
     (is-typed (f3 22 :z t :y "bye") boolean)
     (is-typed (f3 22 :z nil) boolean)
-    (signals-type-error (f3 22 :z 22))))
+    (signals-type-error (f3 22 :z 22))
+
+    ;; rest args types
+    (gradual::typed-defun f4 ((x string) &rest (rest integer))
+      (declare (return-type string))
+      (concatenate 'string x (prin1-to-string (apply #'+ rest))))
+    (is-typed (f4 "hello") string)
+    (is-typed (f4 "hello" 22) string)
+    (is-typed (f4 "hello" 34 54 545) string)
+    (signals-type-error (f4 22))
+    (signals-type-error (f4 "hello" "lala"))
+    (signals-type-error (f4 "hello" 34 4544 "foo" 34))))
       
        

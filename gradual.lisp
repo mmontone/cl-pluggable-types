@@ -288,7 +288,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				    (second arg)))
 			    optional)))
 	    (when rest
-	      (cons '&rest rest))
+	      (cons '&rest (list (first rest))))
 	    (when keys
 	      (cons '&key
 		    (mapcar (lambda (arg)
@@ -373,7 +373,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			    type))
 			 t))
 		       (lambda-list-type (or (aand (or (find arg (append required-args
-									 optional-args)
+									 optional-args
+									 (list rest-arg))
 							     :key #'first)
 						       (find arg key-args
 							     :key (compose #'second #'first)))
@@ -405,7 +406,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 					       (cons arg
 						     (read-arg-type arg)))
 					     (mapcar (compose #'second #'first) key-args)))
-		 (rest-arg-type (when rest-arg (read-arg-type (mapcar #'first rest-arg))))
+		 (rest-arg-type (when rest-arg (read-arg-type (first rest-arg))))
 		 (function-type `(make-function-type :required-args-types ',required-args-types
 						     :optional-args-types ',optional-args-types
 						     :keyword-args-types ',keyword-args-types
@@ -418,11 +419,15 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			    `(progn
 			       ,@(loop for arg in (append (mapcar #'first required-args)
 							  (mapcar #'first optional-args)
-							  (mapcar (compose #'second #'first) key-args)
-							  (when rest-arg (list rest-arg)))
+							  (mapcar (compose #'second #'first) key-args))
 				    for arg-type = (read-arg-type arg)
 				    when (not (equalp arg-type t))
 				    collect `(check-gradual-type ,arg ',arg-type))
+			       ,@(when rest-arg
+				       (with-unique-names (rest-elem)
+					 (let ((arg-type (read-arg-type (first rest-arg))))
+					   `((loop for ,rest-elem in ,(first rest-arg)
+						do (check-gradual-type ,rest-elem ',arg-type))))))
 			       ,@(if (not (equalp return-type t))
 				     (with-unique-names (result)
 				       `((let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
