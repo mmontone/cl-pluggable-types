@@ -80,7 +80,10 @@
 				t)))
 	      (setf fun-env (set-env-var-type fun-env (name-of arg) arg-type))))
     (let ((body-type
-	   (%typecheck-form (body-of form) fun-env)))
+	   (or
+	    (aand (body-of form)
+		  (%typecheck-form it fun-env))
+	    'null)))
       (when (not (or (equalp body-type t)
 		     (subtypep body-type (function-type-return-type fun-type))))
 	(gradual-type-error nil "~A should return ~A but ~A found."
