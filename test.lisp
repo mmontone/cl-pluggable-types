@@ -241,3 +241,62 @@
     22)
   (is (equalp (fun-type 'hello)
 	      (fun (string &key (y boolean)) integer))))
+
+;; typechecking tests
+
+(def-test free-application-typechecking ()
+  ;; required args types
+  (gradual::typed-defun f1 ((x string))
+    (declare (return-type string))
+    x)
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f1 "asdf"))
+	(gradual::make-typing-environment))
+       'string))
+  (signals gradual-type-error
+    (gradual::%typecheck-form
+     (gradual::walk-form '(f1 22))
+     (gradual::make-typing-environment)))
+
+  ;; optional args types
+  (gradual::typed-defun f2 ((x integer) &optional (y nil string))
+    (declare (return-type integer)))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f2 22))
+	(gradual::make-typing-environment))
+       'integer))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f2 22 "asdf"))
+	(gradual::make-typing-environment))
+       'integer))
+  (signals gradual-type-error
+    (gradual::%typecheck-form
+	(gradual::walk-form '(f2 22 23))
+	(gradual::make-typing-environment)))
+  (signals gradual-type-error
+    (gradual::%typecheck-form
+     (gradual::walk-form '(f2 "asfd" "sdf"))
+     (gradual::make-typing-environment)))
+
+  ;; keyword args types
+  (gradual::typed-defun f3 ((x integer) &key (y nil string)
+			    (z t boolean))
+    (declare (return-type boolean))
+    (and (> x 3)
+	 (or (null y)
+	     (> (length y) 3))
+	 z))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f3 22))
+	(gradual::make-typing-environment))
+       'boolean))
+  (is (equalp
+       (gradual::%typecheck-form
+	(gradual::walk-form '(f3 22 :y "hello"))
+	(gradual::make-typing-environment))
+       'boolean)))
+       

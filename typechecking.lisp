@@ -95,6 +95,14 @@
      finally (return type)))
 
 (defmethod %typecheck-form ((form free-application-form) typing-environment)
+  (flet ((check-argument-types (arg actual-arg-type formal-arg-type)
+	   (when (not (or (equalp actual-arg-type t)
+			  (subtypep actual-arg-type formal-arg-type)))
+	     (gradual-type-error (source-of form)
+				 "~A has type ~A but ~A expected"
+				 (source-of arg)
+				 actual-arg-type
+				 formal-arg-type))))
   (let ((operator (operator-of form))
 	(args (arguments-of form)))
     (let ((operator-type (fun-type operator)))
@@ -104,19 +112,49 @@
 	    (when *debug* (format t "Warning: function ~A type has not been declared.~%" operator))
 	    (return-from %typecheck-form t))
 	  ;; else, check the operator type signature matches the arguments types
-	  (progn
-	    (loop for arg in args
-	       for formal-arg-type in (function-type-required-args-types operator-type)
-	       do
-		 (let ((actual-arg-type (%typecheck-form arg typing-environment)))
-		   (when (not (or (equalp actual-arg-type t)
-				  (subtypep actual-arg-type formal-arg-type)))
-		     (gradual-type-error (source-of form)
-					 "~A has type ~A but ~A expected"
-					 (source-of arg)
-					 actual-arg-type
-					 formal-arg-type))))
-	    (function-type-return-type operator-type))))))
+	  (let ((args (copy-list args)))
+	    ;; required parameters
+	    (loop for formal-arg-type in (function-type-required-args-types operator-type)
+		
+	       do (let* ((arg (pop args))
+			 (actual-arg-type (%typecheck-form arg typing-environment)))
+		    (check-argument-types arg actual-arg-type formal-arg-type)))
+	    ;; optional parameters
+	    (loop for formal-arg-type in (function-type-optional-args-types operator-type)
+		
+	       do (let ((arg (pop args)))
+		    (when (null arg)
+		      ;; Stop if the optional parameter is not being passed
+		      (return nil))
+		    (let ((actual-arg-type (%typecheck-form arg typing-environment)))
+		      (check-argument-types arg actual-arg-type formal-arg-type))))
+	    ;; keyword parameters
+	    (when (function-type-keyword-args-types operator-type)
+	      (loop while args
+		   do
+		   (let ((key (pop args))
+			 (arg (pop args)))
+		     (when (not key)
+		       (return))
+		     (assert (and (typep key 'constant-form)
+				  (keywordp (value-of key)))
+			     nil
+			     "~A is not a keyword argument" key)
+		     (let ((formal-arg-type (cdr (assoc (value-of key)
+							(function-type-keyword-args-types operator-type)))))
+		       (assert formal-arg-type nil "Keyword type for ~A not found" key)
+		       (let ((actual-arg-type (%typecheck-form arg typing-environment)))
+			 (check-argument-types arg actual-arg-type formal-arg-type)))
+		     )))
+	    ;; rest parameters
+	    (awhen (function-type-rest-arg-type operator-type)
+	      ;; rest args = args
+	      (loop for arg in args
+		   do (let ((actual-arg-type (%typecheck-form arg typing-environment)))
+			(check-argument-types arg actual-arg-type it))))
+	    
+	    ;; return return-type
+	    (function-type-return-type operator-type)))))))
 
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
   (or (env-var-type typing-environment (name-of form))
