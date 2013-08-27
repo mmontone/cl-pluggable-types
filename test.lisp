@@ -245,73 +245,44 @@
 ;; typechecking tests
 
 (def-test free-application-typechecking ()
-  ;; required args types
-  (gradual::typed-defun f1 ((x string))
-    (declare (return-type string))
-    x)
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f1 "asdf"))
-	(gradual::make-typing-environment))
-       'string))
-  (signals gradual-type-error
-    (gradual::%typecheck-form
-     (gradual::walk-form '(f1 22))
-     (gradual::make-typing-environment)))
+  (macrolet ((is-typed (form type)
+	       `(is (equalp
+		     (gradual::%typecheck-form
+		      (gradual::walk-form ',form)
+		      (gradual::make-typing-environment))
+		     ',type)))
+	     (signals-type-error (form)
+	       `(signals gradual-type-error
+		  (gradual::%typecheck-form
+		   (gradual::walk-form ',form)
+		   (gradual::make-typing-environment)))))
+    ;; required args types
+    (gradual::typed-defun f1 ((x string))
+      (declare (return-type string))
+      x)
+    (is-typed (f1 "asdf") string)
+    (signals-type-error (f1 22))
 
-  ;; optional args types
-  (gradual::typed-defun f2 ((x integer) &optional (y nil string))
-    (declare (return-type integer)))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f2 22))
-	(gradual::make-typing-environment))
-       'integer))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f2 22 "asdf"))
-	(gradual::make-typing-environment))
-       'integer))
-  (signals gradual-type-error
-    (gradual::%typecheck-form
-	(gradual::walk-form '(f2 22 23))
-	(gradual::make-typing-environment)))
-  (signals gradual-type-error
-    (gradual::%typecheck-form
-     (gradual::walk-form '(f2 "asfd" "sdf"))
-     (gradual::make-typing-environment)))
+    ;; optional args types
+    (gradual::typed-defun f2 ((x integer) &optional (y nil string))
+      (declare (return-type integer)))
+    (is-typed (f2 22) integer)
+    (is-typed (f2 22 "asdf") integer)
+    (signals-type-error (f2 22 23))
+    (signals-type-error (f2 "asfd" "sdf"))
 
-  ;; keyword args types
-  (gradual::typed-defun f3 ((x integer) &key (y nil string)
-			    (z t boolean))
-    (declare (return-type boolean))
-    (and (> x 3)
-	 (or (null y)
-	     (> (length y) 3))
-	 z))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f3 22))
-	(gradual::make-typing-environment))
-       'boolean))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f3 22 :y "hello"))
-	(gradual::make-typing-environment))
-       'boolean))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f3 22 :z t :y "bye"))
-	(gradual::make-typing-environment))
-       'boolean))
-  (is (equalp
-       (gradual::%typecheck-form
-	(gradual::walk-form '(f3 22 :z nil))
-	(gradual::make-typing-environment))
-       'boolean))
-  (signals gradual-type-error
-    (gradual::%typecheck-form
-     (gradual::walk-form '(f3 22 :z 22))
-     (gradual::make-typing-environment))))
+    ;; keyword args types
+    (gradual::typed-defun f3 ((x integer) &key (y nil string)
+			      (z t boolean))
+      (declare (return-type boolean))
+      (and (> x 3)
+	   (or (null y)
+	       (> (length y) 3))
+	   z))
+    (is-typed (f3 22) boolean)
+    (is-typed (f3 22 :y "hello") boolean)
+    (is-typed (f3 22 :z t :y "bye") boolean)
+    (is-typed (f3 22 :z nil) boolean)
+    (signals-type-error (f3 22 :z 22))))
       
        
