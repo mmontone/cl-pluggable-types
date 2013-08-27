@@ -186,3 +186,11 @@
 			  (value-of form)
 			  value-type
 			  declared-type))))
+
+(defmethod %typecheck-form ((form function-object-form) typing-environment)
+  (let ((function-type (fun-type (name-of form))))
+    (or (aand function-type
+	      it)
+	(progn
+	  (when *debug* (format t "Warning: function ~A type has not been declared.~%" (name-of form)))
+	  t))))
