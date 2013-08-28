@@ -1,5 +1,15 @@
 (in-package :gradual)
 
+;; TODO:
+
+;; Look at sb-kernel::values-specifier-type
+;; Example: (sb-kernel::values-specifier-type 'number)
+;; Actually, lots of function types stuff here is a reimplementation of
+;; sb-kernel::values-specifier-type.
+;; For instance, evaluate this:
+;; (sb-kernel::values-specifier-type '(function (string &optional boolean &key (x number)) string))
+;; (sb-kernel::values-specifier-type '(function (integer &rest string) (values boolean integer)))
+
  (defun equidimensional (a)
    (or (< (array-rank a) 2)
        (apply #'= (array-dimensions a))))
@@ -38,3 +48,4 @@
 (set-fun-type 'cl:null (fun (t) boolean))
 (set-fun-type 'cl:prin1-to-string (fun (t) string))
 (set-fun-type 'cl:apply (fun (&rest t) t))
+(set-fun-type 'cl:+ (fun (number &rest number) number))
