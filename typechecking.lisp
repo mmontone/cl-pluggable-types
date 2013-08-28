@@ -5,6 +5,69 @@
 (defun enable-debugging (&optional (enable-p t))
   (setf *debug* enable-p))
 
+;; Function types
+
+;; TODO:
+
+;; Look at sb-kernel::values-specifier-type
+;; Example: (sb-kernel::values-specifier-type 'number)
+;; Actually, lots of function types stuff here is a reimplementation of
+;; sb-kernel::values-specifier-type.
+;; For instance, evaluate this:
+;; (sb-kernel::values-specifier-type '(function (string &optional boolean &key (x number)) string))
+;; (sb-kernel::values-specifier-type '(function (integer &rest string) (values boolean integer)))
+
+(defstruct (function-type
+	     (:print-function
+	      (lambda (struct stream depth)
+		(declare (ignore depth))
+		(format stream "(FUN (~A~A~A~A) ~A)"
+			(format nil "~{~a~^ ~}" (function-type-required-args-types struct))
+			(or (aand (function-type-optional-args-types struct)
+				  (format nil " &optional ~{~a~^ ~}" it))
+			    "")
+			(or (aand (function-type-keyword-args-types struct)
+				  (with-output-to-string (s)
+				    (format s " &key ")
+				    (loop for (var . type) in it
+				       do (format s "(~A ~A)" var type))))
+			    "")
+			(or (aand (function-type-rest-arg-type struct)
+				  (format nil " &rest ~A" it))
+			    "")
+			(function-type-return-type struct)))))
+  required-args-types
+  optional-args-types
+  keyword-args-types
+  rest-arg-type
+  return-type)
+
+(defun function-type-spec (function-type)
+  `(FUNCTION (
+	      ,@(function-type-required-args-types function-type)
+		,@(awhen (function-type-optional-args-types function-type)
+			 (cons '&optional it))
+		,@(awhen (function-type-keyword-args-types function-type)
+			 (cons '&key 
+			       (mapcar (lambda (var-and-type)
+					 (list (car var-and-type)
+					       (cdr var-and-type)))
+				       it)))
+		,@(awhen (function-type-rest-arg-type function-type)
+			 (list '&rest
+			       it))
+		)
+	     ,(function-type-return-type function-type)))
+
+(defmethod gradual-subtypep (t1 t2)
+  (subtypep t1 t2))
+
+(defmethod gradual-subtypep ((t1 function-type) t2)
+  (subtypep (function-type-spec t1) t2))
+
+(defmethod gradual-subtypep (t1 (t2 function-type))
+  (subtypep t1 (function-type-spec t2)))
+
 (defun typecheck (&optional (output *standard-output*))
   (when *debug*
     (format output "Typechecking started.~%"))
@@ -33,14 +96,6 @@
        (setf type (%typecheck-form body-form typing-environment))
        finally (return type)))
 
-(defun more-specific-type (type1 type2)
-  (if (not (or (subtypep type1 type2)
-	       (subtypep type2 type1)))
-	   (error "Cant decide between ~A and ~A" type1 type2))
-  (if (subtypep type1 type2)
-      type1
-      type2))
-
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form))
 	(let-env typing-environment))
@@ -50,7 +105,7 @@
 			    t)))
 	      (let ((value-type (%typecheck-form value typing-environment)))
 		(if (not (or (equalp value-type t)
-			     (subtypep value-type type)))
+			     (gradual-subtypep value-type type)))
 		    (gradual-type-error (source-of form)
 					"~A should have type ~A but is ~A"
 					(name-of binding)
@@ -85,7 +140,7 @@
 		  (%typecheck-form it fun-env))
 	    'null)))
       (when (not (or (equalp body-type t)
-		     (subtypep body-type (function-type-return-type fun-type))))
+		     (gradual-subtypep body-type (function-type-return-type fun-type))))
 	(gradual-type-error nil "~A should return ~A but ~A found."
 			    (name-of form)
 			    (function-type-return-type fun-type)
@@ -103,7 +158,7 @@
 (defmethod %typecheck-form ((form free-application-form) typing-environment)
   (flet ((check-argument-types (arg actual-arg-type formal-arg-type)
 	   (when (not (or (equalp actual-arg-type t)
-			  (subtypep actual-arg-type formal-arg-type)))
+			  (gradual-subtypep actual-arg-type formal-arg-type)))
 	     (gradual-type-error (source-of form)
 				 "~A has type ~A but ~A expected"
 				 (source-of arg)
@@ -180,7 +235,7 @@
 	(declared-type (cl-walker::type-of form)))
     (when (not (or (equalp value-type t)
 		   (equalp declared-type t)
-		   (subtypep value-type declared-type)))
+		   (gradual-subtypep value-type declared-type)))
       (gradual-type-error (source-of form)
 			  "~A has type ~A but ~A expected"
 			  (value-of form)

@@ -32,32 +32,6 @@
 (defun enable-typechecking (&optional (enable-p t))
   (setf *typechecking-enabled* enable-p))
 
-(defstruct (function-type
-	     (:print-function
-	      (lambda (struct stream depth)
-		(declare (ignore depth))
-		(format stream "(FUN (~A~A~A~A) ~A)"
-			(format nil "~{~a~^ ~}" (function-type-required-args-types struct))
-			(or (aand (function-type-optional-args-types struct)
-				  (format nil " &optional ~{~a~^ ~}" it))
-			    "")
-			(or (aand (function-type-keyword-args-types struct)
-				  (with-output-to-string (s)
-				    (format s " &key ")
-				    (loop for (var . type) in it
-				       do (format s "(~A ~A)" var type))))
-			    "")
-			(or (aand (function-type-rest-arg-type struct)
-				  (format nil " &rest ~A" it))
-			    "")
-			(function-type-return-type struct)))))
-  required-args-types
-  optional-args-types
-  keyword-args-types
-  rest-arg-type
-  return-type)
-   
-
 ;;(defmacro get-walker-template-internal (x)
 ;;  `(get ,x 'walker-template))
 
