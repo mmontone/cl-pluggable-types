@@ -127,7 +127,29 @@
 						(or (cl-walker::type-spec binding)
 						    value-type)
 						)))))
-    (%typecheck-form (body-of form) let-env)))		    
+    (%typecheck-form (body-of form) let-env)))
+
+(defmethod %typecheck-form ((form let*-form) typing-environment)
+  (let ((bindings (bindings-of form))
+	(let*-env typing-environment))
+    (loop for binding in bindings
+	 do (let ((value (value-of binding))
+		  (type (or (cl-walker::type-spec binding)
+			    t)))
+	      (let ((value-type (%typecheck-form value let*-env)))
+		(if (not (or (equalp value-type t)
+			     (gradual-subtypep value-type type)))
+		    (gradual-type-error (source-of form)
+					"~A should have type ~A but is ~A"
+					(name-of binding)
+					type
+					value-type))
+		(setf let*-env (set-env-var-type let*-env
+						 (name-of binding)
+						 (or (cl-walker::type-spec binding)
+						     value-type)
+						)))))
+    (%typecheck-form (body-of form) let*-env)))
 
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)
   (let* ((declarations (declares-of form))
@@ -311,7 +333,7 @@
 
 	       (let ((body-type
 		      (or
-		       (aand (body-of form)
+		       (aand (body-of binding)
 			     (%typecheck-form it flet-env))
 		       'null)))
 		 (when (not (or (equalp body-type t)
@@ -329,3 +351,19 @@
 
     ;; Typecheck the function body in the new functions environment
     (%typecheck-form (body-of form) flet-env)))
+
+(defmethod %typecheck-form ((form free-function-object-form) typing-environment)
+  (fun-type (name-of form)))
+
+(defmethod %typecheck-form ((form setq-form) typing-environment)
+  (let ((value-type (%typecheck-form (value-of form) typing-environment))
+	(var-type (or (env-var-type typing-environment (variable-of form))
+		      t)))
+    (when (not (or (equalp value-type t)
+		   (equalp var-type t)
+		   (gradual-subtypep value-type var-type)))
+      (gradual-type-error (source-of form)
+			  "~A has type ~A but ~A expected"
+			  (value-of form)
+			  value-type
+			  var-type))))
