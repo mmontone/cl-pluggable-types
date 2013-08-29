@@ -296,5 +296,19 @@
     (signals-type-error (f4 22))
     (signals-type-error (f4 "hello" "lala"))
     (signals-type-error (f4 "hello" 34 4544 "foo" 34))))
-      
-       
+
+(def-test type-casting-test ()
+  (gradual::typed-defun f5 ((x string) (y string))
+    (declare (return-type string))
+    (concatenate 'string x y))
+  ;; This signals an error because the casting from sequence to string is not being done
+  (signals gradual-type-error
+    (gradual::%typecheck-form (gradual::fun-source 'f5)
+			      (gradual::make-typing-environment)))
+
+  (gradual::typed-defun f6 ((x string) (y string))
+    (declare (return-type string))
+    ((string) concatenate 'string x y))
+  (is (equalp (gradual::%typecheck-form (gradual::fun-source 'f6)
+					(gradual::make-typing-environment))
+	      (fun (string string) string))))
