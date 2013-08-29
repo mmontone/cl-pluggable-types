@@ -100,16 +100,16 @@
 
 ;; Gradual types declarations
 
-(defclass type-declaration-form ()
+(defclass gradual-type-declaration-form ()
   ((type :accessor type-of :initarg :type)))
 
-(defclass var-type-declaration-form (variable-declaration-form type-declaration-form)
+(defclass var-type-declaration-form (variable-declaration-form gradual-type-declaration-form)
   ())
 
 (defunwalker-handler var-type-declaration-form (type name)
   `(type ,type ,name))
 
-(defclass return-type-declaration-form (declaration-form type-declaration-form)
+(defclass return-type-declaration-form (declaration-form gradual-type-declaration-form)
   ())
 
 (defunwalker-handler return-type-declaration-form (type)
@@ -187,7 +187,7 @@
                          (make-declaration 'special-variable-declaration-form :name var)
                          var `(special)))
             (type
-             (extend-env (var (rest arguments))
+	     (extend-env (var (rest arguments))
                          (make-form-object 'type-declaration-form parent
                                            :name var
                                            :type (first arguments))
