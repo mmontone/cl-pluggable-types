@@ -17,6 +17,17 @@
 ;; (sb-kernel::values-specifier-type '(function (string &optional boolean &key (x number)) string))
 ;; (sb-kernel::values-specifier-type '(function (integer &rest string) (values boolean integer)))
 
+;; Ideas?::
+;; Consider (optional) checked-exceptions declarations and (optional) dynamic variable (implicit parameters) usage declarations in function types
+;; Like:
+;; (defun open-file (f)
+;;     (declare (signals 'file-not-found-error))
+;;   ...)
+;;
+;; (defun scoped-function ()
+;;   (declare (uses *var*))
+;;   ...)
+
 (defstruct (function-type
 	     (:print-function
 	      (lambda (struct stream depth)
@@ -242,10 +253,86 @@
 			  value-type
 			  declared-type))))
 
-(defmethod %typecheck-form ((form function-object-form) typing-environment)
-  (let ((function-type (fun-type (name-of form))))
+(let ((function-type (env-fun-type (name-of form))))
     (or (aand function-type
 	      it)
 	(progn
 	  (when *debug* (format t "Warning: function ~A type has not been declared.~%" (name-of form)))
 	  t))))
+
+(defmethod %typecheck-form ((form flet-form) typing-environment)
+  (let ((bindings (bindings-of form))
+	(flet-env typing-environment))
+    (loop for binding in bindings
+       do
+	 (let* ((declarations (declares-of form))
+		(args-declarations
+		 (remove-if-not
+		  (lambda (declaration)
+		    (typep declaration 'cl-walker::var-type-declaration-form))
+		  declarations)))
+	   (flet ((arg-type (arg)
+		    (or (cl-walker::type-spec arg)
+			(aand (find (name-of arg) args-declarations
+				    :key #'name-of
+				    :test #'equalp)
+			      (cl-walker::type-of it))
+			t)))
+	     ;; Construct the local function type first
+	     (let* ((required-args-types
+		     (mapcar #'arg-type
+			     (remove-if-not
+			      (lambda (arg)
+				(typep arg 'cl-walker::required-function-argument-form))
+			      (arguments-of binding))))
+		    (optional-args-types
+		     (mapcar #'arg-type
+			     (remove-if-not (lambda (arg)
+					      (typep arg 'cl-walker::optional-function-argument-form))
+					    (arguments-of binding))))
+		    (keyword-args-types
+		     (mapcar #'arg-type
+			    (remove-if-not (lambda (arg)
+					     (typep arg 'cl-walker::keyword-function-argument-form))
+					   (arguments-of binding))))
+		   (rest-arg-type
+		    (aand
+		     (find-if (lambda (arg)
+				(typep arg 'cl-walker::rest-function-argument-form))
+			      (arguments-of binding))
+		     (arg-type it)))
+		   (return-type (or (aand
+				     (find-if
+				      (lambda (declaration)
+					(typep declaration 'cl-walker::return-type-declaration-form))
+				      declarations)
+				     (cl-walker::type-of it))
+				    t))
+		   (function-type (make-function-type :required-args-types required-args-types
+						      :optional-args-types optional-args-types
+						      :keyword-args-types keyword-args-types
+						      :rest-arg-type rest-arg-type
+						      :return-type return-type)))
+  
+	       ;; Then typecheck the local function
+
+	       (let ((body-type
+		      (or
+		       (aand (body-of form)
+			     (%typecheck-form it flet-env))
+		       'null)))
+		 (when (not (or (equalp body-type t)
+				(gradual-subtypep body-type return-type)))
+		   (gradual-type-error (source-of form)
+				       "~A should return ~A but ~A found."
+				       (name-of binding)
+				       return-type
+				       body-type))
+
+		 ;; Put the type of the local function in the typing environment
+		 (setf flet-env (set-env-fun-type flet-env
+						  (name-of binding)
+						  function-type)))))))
+
+    ;; Typecheck the function body in the new functions environment
+    (%typecheck-form (body-of form) flet-env)))
