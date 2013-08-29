@@ -7,7 +7,11 @@
 	   :typecheck
 	   :infer-type
 	   :fun
-	   :gradual-type-error))
+	   :gradual-type-error
+
+	   ;; Types
+	   :alist
+	   :plist))
 
 (defpackage :gradual-user
   (:shadow :defun :defparameter)
