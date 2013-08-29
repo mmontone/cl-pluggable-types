@@ -1,3 +1,10 @@
+(defpackage :gradual-common-lisp
+  (:nicknames :gcl)
+  (:import-from :common-lisp :nil)
+  (:shadow :defun :defparameter)
+  (:use :cl :gradual)
+  (:export :nil))
+
 (in-package :gradual-common-lisp)
 
 (defmacro defun (name args &body body)

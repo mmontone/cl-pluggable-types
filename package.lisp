@@ -12,8 +12,3 @@
 	   ;; Types
 	   :alist
 	   :plist))
-
-(defpackage :gradual-common-lisp
-  (:nicknames :gcl)
-  (:shadow :defun :defparameter)
-  (:use :cl :gradual))
