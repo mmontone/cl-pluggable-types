@@ -253,13 +253,6 @@
 			  value-type
 			  declared-type))))
 
-(let ((function-type (env-fun-type (name-of form))))
-    (or (aand function-type
-	      it)
-	(progn
-	  (when *debug* (format t "Warning: function ~A type has not been declared.~%" (name-of form)))
-	  t))))
-
 (defmethod %typecheck-form ((form flet-form) typing-environment)
   (let ((bindings (bindings-of form))
 	(flet-env typing-environment))
