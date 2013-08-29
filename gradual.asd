@@ -49,6 +49,6 @@ OTHER DEALINGS IN THE SOFTWARE."
    (:file "typechecking")
    (:file "inference")
    (:file "types")
-   (:file "gradual-user"))
+   (:file "gradual-common-lisp"))
   :serial t
   :depends-on (:cl-walker :anaphora :alexandria))

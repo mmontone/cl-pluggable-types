@@ -13,6 +13,7 @@
 	   :alist
 	   :plist))
 
-(defpackage :gradual-user
+(defpackage :gradual-common-lisp
+  (:nicknames :gcl)
   (:shadow :defun :defparameter)
   (:use :cl :gradual))

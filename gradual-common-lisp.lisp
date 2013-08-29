@@ -1,4 +1,4 @@
-(in-package :gradual-user)
+(in-package :gradual-common-lisp)
 
 (defmacro defun (name args &body body)
   `(gradual::typed-defun ,name ,args ,@body))
@@ -7,5 +7,5 @@
   `(gradual::typed-defparameter ,name ,value ,type))
 
 (do-external-symbols (s :common-lisp)
-  (export (find-symbol (symbol-name s)) :gradual-user))
+  (export (find-symbol (symbol-name s)) :gradual-common-lisp))
 
