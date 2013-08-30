@@ -35,6 +35,15 @@
 (defclass gradual-type ()
   ())
 
+;; Objects equality. See mw-equiv docs
+
+(defmethod mw-equiv:object-frozenp ((object gradual-type))
+  t)
+
+(defmethod mw-equiv:object-frozenp ((object cons))
+  t)
+
+
 ;; Function types
 
 ;; TODO:
@@ -102,12 +111,6 @@
 	#'optional-args-types
 	#'keyword-args-types
 	#'rest-arg-type))
-
-(defmethod mw-equiv:object-frozenp ((object gradual-type))
-  t)
-
-(defmethod mw-equiv:object-frozenp ((object cons))
-  t)
 
 (defun make-function-type (&rest args)
   (apply #'make-instance 'function-type args))
