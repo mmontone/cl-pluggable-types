@@ -16,6 +16,8 @@
 ;; Export all common-lisp package symbols
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (setf sb-impl::*on-package-variance* (list :warn nil))
+  
   (do-external-symbols (s :common-lisp)
     (export (find-symbol (symbol-name s)) :gradual-common-lisp)))
 

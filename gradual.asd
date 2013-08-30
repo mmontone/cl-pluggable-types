@@ -45,10 +45,10 @@ OTHER DEALINGS IN THE SOFTWARE."
   ((:file "package")
    (:file "gradual")
    (:file "conditions")
+   (:file "types")
    (:file "environment")
    (:file "typechecking")
    (:file "inference")
-   (:file "types")
    (:file "gradual-common-lisp"))
   :serial t
   :depends-on (:cl-walker :anaphora :alexandria))
