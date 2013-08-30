@@ -367,3 +367,13 @@
 			  (value-of form)
 			  value-type
 			  var-type))))
+
+(defmethod %typecheck-form ((form walked-lexical-function-object-form) typing-environment)
+  (env-fun-type typing-environment (name-of form)))
+
+(defmethod %typecheck-form ((form special-variable-reference-form) typing-environment)
+  (var-type (name-of form)))
+
+(defmethod %typecheck-form ((form lambda-function-form) typing-environment)
+  ;; TODO: the following is wrong, until we have typed lambdas
+  (fun (&rest t) t))

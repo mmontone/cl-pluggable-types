@@ -31,11 +31,3 @@
 (deftype alist ()
   `(and cons
 	(satisfies alistp)))
-
-(set-fun-type 'cl:concatenate (fun (symbol &rest sequence) sequence))
-(set-fun-type 'cl:> (fun (number &rest number) boolean))
-(set-fun-type 'cl:length (fun (sequence) number))
-(set-fun-type 'cl:null (fun (t) boolean))
-(set-fun-type 'cl:prin1-to-string (fun (t) string))
-(set-fun-type 'cl:apply (fun (&rest t) t))
-(set-fun-type 'cl:+ (fun (number &rest number) number))

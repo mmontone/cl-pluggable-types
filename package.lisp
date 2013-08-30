@@ -8,7 +8,7 @@
 	   :infer-type
 	   :fun
 	   :gradual-type-error
-
+	   
 	   ;; Types
 	   :alist
 	   :plist))

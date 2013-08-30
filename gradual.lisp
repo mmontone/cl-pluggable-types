@@ -47,7 +47,7 @@
   (setf (gethash fun-name *fun-types*) type))
 
 (defmacro defun-type (fun-name type)
-  `(set-fun-type ',fun-name ',type))
+  `(set-fun-type ',fun-name ,type))
 
 (defun fun-type (fun-name)
   (or
