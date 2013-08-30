@@ -71,7 +71,19 @@
 	     ,(function-type-return-type function-type)))
 
 (defmethod gradual-subtypep (t1 t2)
-  (subtypep t1 t2))
+  (if (equalp t2 t)
+      t
+      (subtypep t1 t2)))
+
+(defmethod gradual-subtypep (t1 (t2 cons))
+  (or (and (equalp (first t2) 'values)
+	   (gradual-subtypep t1 (second t2)))
+      (subtypep t1 t2)))
+
+(defmethod gradual-subtypep ((t1 cons) t2)
+  (or (and (equalp (first t1) 'values)
+	   (gradual-subtypep (second t1) t2))
+      (subtypep t1 t2)))
 
 (defmethod gradual-subtypep ((t1 function-type) t2)
   (subtypep (function-type-spec t1) t2))
@@ -151,6 +163,19 @@
 						)))))
     (%typecheck-form (body-of form) let*-env)))
 
+(defun check-return-type (form value-type type)
+  (let ((type (or (and (listp type)
+		       (equalp (first type) 'values)
+		       (second type))
+		  type)))
+    (when (not (or (equalp value-type t)
+		   (gradual-subtypep value-type type)))
+      (gradual-type-error nil "~A should return ~A but ~A found."
+			  (name-of form)
+			  type
+			  value-type))))
+
+
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)
   (let* ((declarations (declares-of form))
 	 (fun-env typing-environment)
@@ -172,12 +197,7 @@
 	    (aand (body-of form)
 		  (%typecheck-form it fun-env))
 	    'null)))
-      (when (not (or (equalp body-type t)
-		     (gradual-subtypep body-type (function-type-return-type fun-type))))
-	(gradual-type-error nil "~A should return ~A but ~A found."
-			    (name-of form)
-			    (function-type-return-type fun-type)
-			    body-type))
+      (check-return-type form body-type (function-type-return-type fun-type))
       fun-type)))
 
 (defmethod %typecheck-form ((form cons) typing-environment)
@@ -336,14 +356,8 @@
 		       (aand (body-of binding)
 			     (%typecheck-form it flet-env))
 		       'null)))
-		 (when (not (or (equalp body-type t)
-				(gradual-subtypep body-type return-type)))
-		   (gradual-type-error (source-of form)
-				       "~A should return ~A but ~A found."
-				       (name-of binding)
-				       return-type
-				       body-type))
-
+		 (check-return-type form body-type return-type)
+		 
 		 ;; Put the type of the local function in the typing environment
 		 (setf flet-env (set-env-fun-type flet-env
 						  (name-of binding)

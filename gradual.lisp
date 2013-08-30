@@ -125,7 +125,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                  (simple-program-error "Invalid ~A ~S in gradual lambda-list:~%  ~S"
                                        what elt lambda-list)))
 	     (check-type-spec (type what)
-	       (unless (symbolp type)
+	       ;; TODO: how to verify a typespec is valid? symbolp is not enough
+	       #+nil(unless (symbolp type)
 		 (simple-program-error "Invalid ~A type spec ~A in typed lambda list:~% ~S"
 				       what
 				       type
@@ -473,7 +474,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
                  (declare (ignore init))
                  (check-variable suppliedp what nil)))
 	     (check-type-spec (type what)
-	       (unless (symbolp type)
+	       ;; TODO: verify type spec validity. symbolp is not enough
+	       #+nil(unless (symbolp type)
 		 (simple-program-error "Invalid ~A type spec ~A in types lambda list:~% ~S"
 				       what
 				       type
@@ -557,18 +559,23 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
     (simple-program-error "Invalid function type spec ~S" spec))
   (destructuring-bind (function args return-type) spec
     (declare (ignore function))
-    (when (not (symbolp return-type))
-      (simple-program-error "Invalid return type ~A in ~S" return-type spec))
-    (multiple-value-bind (required-args-types
-			  optional-args-types
-			  rest-arg-type
-			  keyword-args-types)
-	(parse-types-lambda-list args)
-      (make-function-type :required-args-types required-args-types
-			  :optional-args-types optional-args-types
-			  :keyword-args-types keyword-args-types
-			  :rest-arg-type rest-arg-type
-			  :return-type return-type))))
+    (if (listp args)
+	(multiple-value-bind (required-args-types
+			      optional-args-types
+			      rest-arg-type
+			      keyword-args-types)
+	    (parse-types-lambda-list args)
+	  (make-function-type :required-args-types required-args-types
+			      :optional-args-types optional-args-types
+			      :keyword-args-types keyword-args-types
+			      :rest-arg-type rest-arg-type
+			      :return-type return-type))
+	;else
+	(if (equalp args '*)
+	    (make-function-type :rest-arg-type t
+				:return-type return-type)
+	    ;; else
+	    (simple-program-error "Invalid function type spec ~S" spec)))))
 
 (defmacro fun (args-types return-type)
   `(parse-function-type-spec '(fun ,args-types ,return-type)))
