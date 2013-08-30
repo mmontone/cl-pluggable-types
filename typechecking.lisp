@@ -111,7 +111,7 @@
 	    (aand (body-of form)
 		  (%typecheck-form it fun-env))
 	    'null)))
-      (check-return-type form body-type (function-type-return-type fun-type))
+      (check-return-type form body-type (return-type fun-type))
       fun-type)))
 
 (defmethod %typecheck-form ((form cons) typing-environment)
@@ -142,13 +142,13 @@
 	  ;; else, check the operator type signature matches the arguments types
 	  (let ((args (copy-list args)))
 	    ;; required parameters
-	    (loop for formal-arg-type in (function-type-required-args-types operator-type)
+	    (loop for formal-arg-type in (required-args-types operator-type)
 		
 	       do (let* ((arg (pop args))
 			 (actual-arg-type (%typecheck-form arg typing-environment)))
 		    (check-argument-types arg actual-arg-type formal-arg-type)))
 	    ;; optional parameters
-	    (loop for formal-arg-type in (function-type-optional-args-types operator-type)
+	    (loop for formal-arg-type in (optional-args-types operator-type)
 		
 	       do (let ((arg (pop args)))
 		    (when (null arg)
@@ -157,7 +157,7 @@
 		    (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 		      (check-argument-types arg actual-arg-type formal-arg-type))))
 	    ;; keyword parameters
-	    (when (function-type-keyword-args-types operator-type)
+	    (when (keyword-args-types operator-type)
 	      (loop while args
 		   do
 		   (let ((key (pop args))
@@ -169,20 +169,20 @@
 			     nil
 			     "~A is not a keyword argument" key)
 		     (let ((formal-arg-type (cdr (assoc (symbol-name (value-of key))
-							(function-type-keyword-args-types operator-type) :key #'symbol-name :test #'equalp))))
+							(keyword-args-types operator-type) :key #'symbol-name :test #'equalp))))
 		       (assert formal-arg-type nil "Keyword type for ~A not found" key)
 		       (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 			 (check-argument-types arg actual-arg-type formal-arg-type)))
 		     )))
 	    ;; rest parameters
-	    (awhen (function-type-rest-arg-type operator-type)
+	    (awhen (rest-arg-type operator-type)
 	      ;; rest args = args
 	      (loop for arg in args
 		   do (let ((actual-arg-type (%typecheck-form arg typing-environment)))
 			(check-argument-types arg actual-arg-type it))))
 	    
 	    ;; return return-type
-	    (function-type-return-type operator-type)))))))
+	    (return-type operator-type)))))))
 
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
   (or (env-var-type typing-environment (name-of form))

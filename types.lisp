@@ -32,6 +32,9 @@
   `(and cons
 	(satisfies alistp)))
 
+(defclass gradual-type ()
+  ())
+
 ;; Function types
 
 ;; TODO:
@@ -55,67 +58,94 @@
 ;;   (declare (uses *var*))
 ;;   ...)
 
-(defstruct args-type
-  required-args-types
-  optional-args-types
-  keyword-args-types
-  rest-arg-type)
+(defclass args-type ()
+  ((required-args-types
+    :initarg :required-args-types
+    :initform nil
+    :accessor required-args-types)
+   (optional-args-types
+    :initarg :optional-args-types
+    :initform nil
+    :accessor optional-args-types)
+   (keyword-args-types
+    :initarg :keyword-args-types
+    :initform nil
+    :accessor keyword-args-types)
+   (rest-arg-type
+    :initarg :rest-arg-type
+    :initform nil
+    :accessor rest-arg-type)))
 
 (defun print-args-type (struct stream)
   (format stream "~A~A~A~A"
-	  (format nil "~{~a~^ ~}" (args-type-required-args-types struct))
-	  (or (aand (args-type-optional-args-types struct)
+	  (format nil "~{~a~^ ~}" (required-args-types struct))
+	  (or (aand (optional-args-types struct)
 		    (format nil " &optional ~{~a~^ ~}" it))
 	      "")
-	  (or (aand (args-type-keyword-args-types struct)
+	  (or (aand (keyword-args-types struct)
 		    (with-output-to-string (s)
 		      (format s " &key ")
 		      (loop for (var . type) in it
 			 do (format s "(~A ~A)" var type))))
 	      "")
-	  (or (aand (args-type-rest-arg-type struct)
+	  (or (aand (rest-arg-type struct)
 		    (format nil " &rest ~A" it))
 	      "")))
 
-(defstruct (function-type
-	     (:include args-type)
-	     (:print-function
-	      (lambda (struct stream depth)
-		(declare (ignore depth))
-		(format stream "(FUN (")
-		(print-args-type struct stream)
-		(format stream ") ~A)" (function-type-return-type struct)))))
-  return-type)
+(defclass function-type (gradual-type args-type)
+  ((return-type :initarg :return-type
+		:initform (error "Provide the return type")
+		:accessor return-type)))
+
+(defmethod mw-equiv:object-constituents ((type (eql 'function-type)))
+  (list #'required-args-types
+	#'optional-args-types
+	#'keyword-args-types
+	#'rest-arg-type))
+
+(defmethod mw-equiv:object-frozenp ((object gradual-type))
+  t)
+
+(defmethod mw-equiv:object-frozenp ((object cons))
+  t)
+
+(defun make-function-type (&rest args)
+  (apply #'make-instance 'function-type args))
+
+(defmethod print-object ((function-type function-type) stream)
+  (format stream "(FUN (")
+  (print-args-type function-type stream)
+  (format stream ") ~A)" (return-type function-type)))  
 
 (defun function-type-spec (function-type)
   `(FUNCTION (
-	      ,@(args-type-required-args-types function-type)
-		,@(awhen (args-type-optional-args-types function-type)
+	      ,@(required-args-types function-type)
+		,@(awhen (optional-args-types function-type)
 			 (cons '&optional it))
-		,@(awhen (args-type-keyword-args-types function-type)
+		,@(awhen (keyword-args-types function-type)
 			 (cons '&key 
 			       (mapcar (lambda (var-and-type)
 					 (list (car var-and-type)
 					       (cdr var-and-type)))
 				       it)))
-		,@(awhen (args-type-rest-arg-type function-type)
+		,@(awhen (rest-arg-type function-type)
 			 (list '&rest
 			       it))
 		)
-	     ,(function-type-return-type function-type)))
+	     ,(return-type function-type)))
 
 (defmethod gradual-subtypep (t1 t2)
-  (if (equalp t2 t)
+  (if (object= t2 t)
       t
       (subtypep t1 t2)))
 
 (defmethod gradual-subtypep (t1 (t2 cons))
-  (if (equalp (first t2) 'values)
+  (if (object= (first t2) 'values)
       (gradual-subtypep t1 (second t2))
       (subtypep t1 t2)))
 
 (defmethod gradual-subtypep ((t1 cons) t2)
-  (if (equalp (first t1) 'values)
+  (if (object= (first t1) 'values)
       (gradual-subtypep (second t1) t2)
       (subtypep t1 t2)))
 
@@ -127,7 +157,7 @@
 
 ;; Types parsing
 
-(defclass type-var ()
+(defclass type-var (gradual-type)
   ((name :initarg :name
 	 :accessor name
 	 :type symbol
@@ -136,7 +166,7 @@
 (defmethod print-object ((type-var type-var) stream)
   (format stream "<~A>" (name type-var)))
 
-(defclass union-type ()
+(defclass union-type (gradual-type)
   ((types :initarg :types
 	  :accessor types
 	  :initform (error "Provide the types")
@@ -145,10 +175,10 @@
 (defmethod print-object ((union-type union-type) stream)
   (format stream "(OR ~{~A~^ ~})" (types union-type)))
 
-(defclass values-type ()
+(defclass values-type (gradual-type args-type)
   ((args :initarg :args)))
 
-(defclass member-type ()
+(defclass member-type (gradual-type)
   ((types :initarg :types
 	  :accessor types
 	  :initform (error "Provide the types")

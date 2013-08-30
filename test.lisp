@@ -1,5 +1,5 @@
 (defpackage :gradual.test
-  (:use :cl :gradual :fiveam)
+  (:use :cl :gradual :mw-equiv :fiveam)
   (:export #:run-tests))
 
 (in-package :gradual.test)
@@ -62,7 +62,7 @@
 (in-suite gradual-tests)
 
 (def-test typed-lambda-list ()
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '(a)))
        (list '((A T))
@@ -72,7 +72,7 @@
 	     NIL
 	     NIL
 	     NIL)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a integer))))
        (list '((A INTEGER))
@@ -84,7 +84,7 @@
 	     NIL)))
   
   ;; Optionals
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer))))
        (list
@@ -95,7 +95,7 @@
 	NIL
 	NIL
 	NIL)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer x-supplied-p))))
        (list
@@ -106,7 +106,7 @@
 	NIL
 	NIL
 	NIL)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &optional x)))
        (list
@@ -119,7 +119,7 @@
 	NIL)))
 
   ;; Keyword
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer))))
        (list
@@ -130,7 +130,7 @@
 	NIL
 	NIL
 	T)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer x-supplied-p))))
        (list
@@ -141,7 +141,7 @@
 	NIL
 	NIL
 	T)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &key x)))
        (list
@@ -152,7 +152,7 @@
 	NIL
 	NIL
 	T)))
-  (is (equalp
+  (is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &key ((:x var) 22 integer))))
        (list
@@ -165,7 +165,7 @@
 	T)))
 
   ;; Rest
-  #+nil(is (equalp
+  #+nil(is (object=
        (multiple-value-list
 	(gradual::parse-typed-lambda-list '((a string) &rest (nums integer))))
        (list
@@ -180,7 +180,7 @@
   )
 
 (def-test types-lambda-list ()
-  (is (equalp
+  (is (object=
        (multiple-value-list 
 	(gradual::parse-types-lambda-list '(integer integer)))
        '((INTEGER INTEGER)
@@ -190,7 +190,7 @@
 	 NIL
 	 NIL
 	 NIL)))
-  (is (equalp
+  (is (object=
        (multiple-value-list 
 	(gradual::parse-types-lambda-list '(integer &optional integer)))
        '((INTEGER)
@@ -200,7 +200,7 @@
 	 NIL
 	 NIL
 	 NIL)))
-  (is (equalp
+  (is (object=
        (multiple-value-list 
 	(gradual::parse-types-lambda-list '(integer &key (x integer))))
        '((INTEGER)
@@ -225,28 +225,28 @@
   (gradual::typed-defun hello ((x string))
     (declare (return-type string))
     x)
-  (is (equalp
+  (is (object=
        (fun-type 'hello)
        (fun (string) string)))
 
   (gradual::typed-defun hello ((x integer) &optional (y "ok" string))
     (declare (return-type integer))
     x)
-  (is (equalp
+  (is (object=
        (fun-type 'hello)
        (fun (integer &optional string) integer)))
 
   (gradual::typed-defun hello ((x string) &key (y nil boolean))
     (declare (return-type integer))
     22)
-  (is (equalp (fun-type 'hello)
+  (is (object= (fun-type 'hello)
 	      (fun (string &key (y boolean)) integer))))
 
 ;; typechecking tests
 
 (def-test free-application-typechecking ()
   (macrolet ((is-typed (form type)
-	       `(is (equalp
+	       `(is (object=
 		     (gradual::%typecheck-form
 		      (gradual::walk-form ',form)
 		      (gradual::make-typing-environment))
@@ -309,14 +309,14 @@
   (gradual::typed-defun f6 ((x string) (y string))
     (declare (return-type string))
     ((string) concatenate 'string x y))
-  (is (equalp (gradual::%typecheck-form (gradual::fun-source 'f6)
+  (is (object= (gradual::%typecheck-form (gradual::fun-source 'f6)
 					(gradual::make-typing-environment))
 	      (fun (string string) string))))
 
 (def-test parse-type-test ()
   (let ((type (gradual::parse-type '<a>)))
     (is (and (typep type 'gradual::type-var)
-	     (equalp (gradual::name type)
+	     (object= (gradual::name type)
 		     'a))))
-  (is (equalp (gradual::parse-type 'string) 'string)))
+  (is (object= (gradual::parse-type 'string) 'string)))
 		     

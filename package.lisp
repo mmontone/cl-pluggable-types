@@ -1,5 +1,5 @@
 (defpackage gradual
-  (:use :cl :cl-walker :anaphora :alexandria)
+  (:use :cl :cl-walker :anaphora :alexandria :mw-equiv)
   (:export :fun-type
 	   :var-type
 	   :return-type

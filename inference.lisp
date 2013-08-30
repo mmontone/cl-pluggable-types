@@ -13,7 +13,7 @@
 (defmethod %infer-type ((form free-application-form) typing-environment)
   (let ((function-type (fun-type (operator-of form)))
 	(args-types (mapcar #'infer-type (arguments-of form))))
-    (function-type-return-type function-type)))
+    (return-type function-type)))
 
 (defmethod %infer-type ((form let-form) typing-environment)
   (let ((fresh-typing-environment typing-environment))
