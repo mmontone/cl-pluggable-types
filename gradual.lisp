@@ -551,34 +551,3 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
     (values (nreverse required) (nreverse optional) rest (nreverse keys)
             allow-other-keys (nreverse aux) keyp)))
-
-(defun parse-function-type-spec (spec)
-  (when (not (and (consp spec)
-		  (equalp (first spec) 'fun)
-		  (equalp (length spec) 3)))
-    (simple-program-error "Invalid function type spec ~S" spec))
-  (destructuring-bind (function args return-type) spec
-    (declare (ignore function))
-    (if (listp args)
-	(multiple-value-bind (required-args-types
-			      optional-args-types
-			      rest-arg-type
-			      keyword-args-types)
-	    (parse-types-lambda-list args)
-	  (make-function-type :required-args-types required-args-types
-			      :optional-args-types optional-args-types
-			      :keyword-args-types keyword-args-types
-			      :rest-arg-type rest-arg-type
-			      :return-type return-type))
-	;else
-	(if (equalp args '*)
-	    (make-function-type :rest-arg-type t
-				:return-type return-type)
-	    ;; else
-	    (simple-program-error "Invalid function type spec ~S" spec)))))
-
-(defmacro fun (args-types return-type)
-  `(parse-function-type-spec '(fun ,args-types ,return-type)))
-
-(defmacro @ (&rest args)
-    `(declare ,@args))

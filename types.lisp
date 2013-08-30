@@ -116,9 +116,9 @@
   (apply #'make-instance 'function-type args))
 
 (defmethod print-object ((function-type function-type) stream)
-  (format stream "(FUN (")
+  (format stream "(FUNCTION (")
   (print-args-type function-type stream)
-  (format stream ") ~A)" (return-type function-type)))  
+  (format stream ") ~A)" (return-type function-type))) 
 
 (defun function-type-spec (function-type)
   `(FUNCTION (
@@ -178,8 +178,22 @@
 (defmethod print-object ((union-type union-type) stream)
   (format stream "(OR ~{~A~^ ~})" (types union-type)))
 
+(defclass intersection-type (gradual-type)
+  ((types :initarg :types
+	  :accessor types
+	  :initform (error "Provide the types")
+	  :type list)))
+
+(defmethod print-object ((type intersection-type) stream)
+  (format stream "(AND ~{~A~^ ~})" (types type)))
+
 (defclass values-type (gradual-type args-type)
   ((args :initarg :args)))
+
+(defmethod print-object ((type values-type) stream)
+  (format stream "(VALUES ")
+  (print-args-type type stream)
+  (format stream ")"))
 
 (defclass member-type (gradual-type)
   ((types :initarg :types
@@ -187,18 +201,73 @@
 	  :initform (error "Provide the types")
 	  :type list)))
 
+(defmethod print-object ((type member-type) stream)
+  (format stream "(MEMBER ~{~A~^ ~})" (types type)))
+
 (defun parse-type (spec)
-  (if (symbolp spec)
-      (let ((spec-string (symbol-name spec)))
-	(if (and (equalp (char spec-string 0) #\<)
-		 (equalp (char spec-string (1- (length spec-string)))
-			 #\>))
-	    ;; It is a type variable
-	    (make-instance 'type-var
-			   :name (intern
-				  (subseq spec-string 1
-					  (1- (length spec-string)))))
-	    ;; else, just use the symbol
-	    spec))
-      ;; else
-      ))
+  (cond
+    ((symbolp spec)
+     (let ((spec-string (symbol-name spec)))
+       (if (and (equalp (char spec-string 0) #\<)
+		(equalp (char spec-string (1- (length spec-string)))
+			#\>))
+	   ;; It is a type variable
+	   (make-instance 'type-var
+			  :name (intern
+				 (subseq spec-string 1
+					 (1- (length spec-string)))))
+	   ;; else, just use the symbol
+	   spec)))
+    ((consp spec)
+     (cond
+       ((equalp (first spec) 'or)
+	(make-instance 'union-type :types (mapcar #'parse-type (rest spec))))
+       ((equalp (first spec) 'and)
+	(make-instance 'intersection-type :types (mapcar #'parse-type (rest spec))))
+       ((equalp (first spec) 'values)
+	(parse-values-type spec))
+       ((equalp (first spec) 'function)
+	(parse-function-type spec))
+       (t ;; just return the list
+	spec)))
+    (t (error "Error parsing the type ~A" spec))))
+
+(defun parse-function-type (spec)
+  (when (not (and (consp spec)
+		  (equalp (first spec) 'function)
+		  (equalp (length spec) 3)))
+    (simple-program-error "Invalid function type spec ~S" spec))
+  (destructuring-bind (function args return-type) spec
+    (declare (ignore function))
+    (if (listp args)
+	(multiple-value-bind (required-args-types
+			      optional-args-types
+			      rest-arg-type
+			      keyword-args-types)
+	    (parse-types-lambda-list args)
+	  (make-function-type :required-args-types required-args-types
+			      :optional-args-types optional-args-types
+			      :keyword-args-types keyword-args-types
+			      :rest-arg-type rest-arg-type
+			      :return-type return-type))
+	;else
+	(if (equalp args '*)
+	    (make-function-type :rest-arg-type t
+				:return-type return-type)
+	    ;; else
+	    (simple-program-error "Invalid function type spec ~S" spec)))))
+
+(defmacro fun (args-types return-type)
+  `(parse-type '(function ,args-types ,return-type)))
+
+(defun parse-values-type (spec)
+  (multiple-value-bind (required-args-types
+			optional-args-types
+			rest-arg-type
+			keyword-args-types)
+      (parse-types-lambda-list (rest spec))
+    (make-instance 'values-type
+		   :required-args-types required-args-types
+		   :optional-args-types optional-args-types
+		   :rest-arg-type rest-arg-type
+		   :keyword-args-type keyword-args-types)))
