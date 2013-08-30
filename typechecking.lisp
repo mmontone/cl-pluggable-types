@@ -76,13 +76,13 @@
       (subtypep t1 t2)))
 
 (defmethod gradual-subtypep (t1 (t2 cons))
-  (or (and (equalp (first t2) 'values)
-	   (gradual-subtypep t1 (second t2)))
+  (if (equalp (first t2) 'values)
+      (gradual-subtypep t1 (second t2))
       (subtypep t1 t2)))
 
 (defmethod gradual-subtypep ((t1 cons) t2)
-  (or (and (equalp (first t1) 'values)
-	   (gradual-subtypep (second t1) t2))
+  (if (equalp (first t1) 'values)
+      (gradual-subtypep (second t1) t2)
       (subtypep t1 t2)))
 
 (defmethod gradual-subtypep ((t1 function-type) t2)
