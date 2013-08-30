@@ -318,5 +318,6 @@
     (is (and (typep type 'gradual::type-var)
 	     (object= (gradual::name type)
 		     'a))))
-  (is (object= (gradual::parse-type 'string) 'string)))
+  (is (object= (gradual::parse-type 'string) 'string))
+  (gradual::parse-type '(function ((function (<a>) <b>) (list <a>)) (list <b>))))
 		     

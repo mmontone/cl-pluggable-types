@@ -245,15 +245,15 @@
 			      rest-arg-type
 			      keyword-args-types)
 	    (parse-types-lambda-list args)
-	  (make-function-type :required-args-types required-args-types
-			      :optional-args-types optional-args-types
-			      :keyword-args-types keyword-args-types
-			      :rest-arg-type rest-arg-type
-			      :return-type return-type))
+	  (make-function-type :required-args-types (mapcar #'parse-type required-args-types)
+			      :optional-args-types (mapcar #'parse-type optional-args-types)
+			      :keyword-args-types (mapcar #'parse-type keyword-args-types)
+			      :rest-arg-type (parse-type rest-arg-type)
+			      :return-type (parse-type return-type)))
 	;else
 	(if (equalp args '*)
 	    (make-function-type :rest-arg-type t
-				:return-type return-type)
+				:return-type (parse-type return-type))
 	    ;; else
 	    (simple-program-error "Invalid function type spec ~S" spec)))))
 
@@ -267,7 +267,7 @@
 			keyword-args-types)
       (parse-types-lambda-list (rest spec))
     (make-instance 'values-type
-		   :required-args-types required-args-types
-		   :optional-args-types optional-args-types
-		   :rest-arg-type rest-arg-type
-		   :keyword-args-type keyword-args-types)))
+		   :required-args-types (mapcar #'parse-type required-args-types)
+		   :optional-args-types (mapcar #'parse-type optional-args-types)
+		   :rest-arg-type (parse-type rest-arg-type)
+		   :keyword-args-types (mapcar #'parse-type keyword-args-types))))
