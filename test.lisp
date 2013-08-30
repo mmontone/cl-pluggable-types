@@ -312,3 +312,11 @@
   (is (equalp (gradual::%typecheck-form (gradual::fun-source 'f6)
 					(gradual::make-typing-environment))
 	      (fun (string string) string))))
+
+(def-test parse-type-test ()
+  (let ((type (gradual::parse-type '<a>)))
+    (is (and (typep type 'gradual::type-var)
+	     (equalp (gradual::name type)
+		     'a))))
+  (is (equalp (gradual::parse-type 'string) 'string)))
+		     

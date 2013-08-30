@@ -55,43 +55,50 @@
 ;;   (declare (uses *var*))
 ;;   ...)
 
-(defstruct (function-type
-	     (:print-function
-	      (lambda (struct stream depth)
-		(declare (ignore depth))
-		(format stream "(FUN (~A~A~A~A) ~A)"
-			(format nil "~{~a~^ ~}" (function-type-required-args-types struct))
-			(or (aand (function-type-optional-args-types struct)
-				  (format nil " &optional ~{~a~^ ~}" it))
-			    "")
-			(or (aand (function-type-keyword-args-types struct)
-				  (with-output-to-string (s)
-				    (format s " &key ")
-				    (loop for (var . type) in it
-				       do (format s "(~A ~A)" var type))))
-			    "")
-			(or (aand (function-type-rest-arg-type struct)
-				  (format nil " &rest ~A" it))
-			    "")
-			(function-type-return-type struct)))))
+(defstruct args-type
   required-args-types
   optional-args-types
   keyword-args-types
-  rest-arg-type
+  rest-arg-type)
+
+(defun print-args-type (struct stream)
+  (format stream "~A~A~A~A"
+	  (format nil "~{~a~^ ~}" (args-type-required-args-types struct))
+	  (or (aand (args-type-optional-args-types struct)
+		    (format nil " &optional ~{~a~^ ~}" it))
+	      "")
+	  (or (aand (args-type-keyword-args-types struct)
+		    (with-output-to-string (s)
+		      (format s " &key ")
+		      (loop for (var . type) in it
+			 do (format s "(~A ~A)" var type))))
+	      "")
+	  (or (aand (args-type-rest-arg-type struct)
+		    (format nil " &rest ~A" it))
+	      "")))
+
+(defstruct (function-type
+	     (:include args-type)
+	     (:print-function
+	      (lambda (struct stream depth)
+		(declare (ignore depth))
+		(format stream "(FUN (")
+		(print-args-type struct stream)
+		(format stream ") ~A)" (function-type-return-type struct)))))
   return-type)
 
 (defun function-type-spec (function-type)
   `(FUNCTION (
-	      ,@(function-type-required-args-types function-type)
-		,@(awhen (function-type-optional-args-types function-type)
+	      ,@(args-type-required-args-types function-type)
+		,@(awhen (args-type-optional-args-types function-type)
 			 (cons '&optional it))
-		,@(awhen (function-type-keyword-args-types function-type)
+		,@(awhen (args-type-keyword-args-types function-type)
 			 (cons '&key 
 			       (mapcar (lambda (var-and-type)
 					 (list (car var-and-type)
 					       (cdr var-and-type)))
 				       it)))
-		,@(awhen (function-type-rest-arg-type function-type)
+		,@(awhen (args-type-rest-arg-type function-type)
 			 (list '&rest
 			       it))
 		)
@@ -118,3 +125,47 @@
 (defmethod gradual-subtypep (t1 (t2 function-type))
   (subtypep t1 (function-type-spec t2)))
 
+;; Types parsing
+
+(defclass type-var ()
+  ((name :initarg :name
+	 :accessor name
+	 :type symbol
+	 :initform (error "Provide the type-var name"))))
+
+(defmethod print-object ((type-var type-var) stream)
+  (format stream "<~A>" (name type-var)))
+
+(defclass union-type ()
+  ((types :initarg :types
+	  :accessor types
+	  :initform (error "Provide the types")
+	  :type list)))
+
+(defmethod print-object ((union-type union-type) stream)
+  (format stream "(OR ~{~A~^ ~})" (types union-type)))
+
+(defclass values-type ()
+  ((args :initarg :args)))
+
+(defclass member-type ()
+  ((types :initarg :types
+	  :accessor types
+	  :initform (error "Provide the types")
+	  :type list)))
+
+(defun parse-type (spec)
+  (if (symbolp spec)
+      (let ((spec-string (symbol-name spec)))
+	(if (and (equalp (char spec-string 0) #\<)
+		 (equalp (char spec-string (1- (length spec-string)))
+			 #\>))
+	    ;; It is a type variable
+	    (make-instance 'type-var
+			   :name (intern
+				  (subseq spec-string 1
+					  (1- (length spec-string)))))
+	    ;; else, just use the symbol
+	    spec))
+      ;; else
+      ))
