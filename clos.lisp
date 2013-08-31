@@ -17,6 +17,8 @@
 ;;    (declare (return-type <a>))
 ;;    (cl:pop (elems queue)))
 
+;; (make-instance '(queue integer))
+
 (defmacro typed-defclass (name direct-superclasses direct-slots &rest options)
   `(progn
      (defclass ,name ,direct-superclasses
@@ -154,3 +156,7 @@
 	       (when *typechecking-enabled*
 		 (typecheck))
 	       ',name)))))))
+
+(defmethod make-instance ((class cons) &rest initargs)
+  "Instantiate a polymorphic class"
+  (error "Not implemented"))
