@@ -43,6 +43,7 @@ OTHER DEALINGS IN THE SOFTWARE."
   :long-description "Gradual typing for Common Lisp"
   :components
   ((:file "package")
+   (:file "util")
    (:file "gradual")
    (:file "conditions")
    (:file "types")

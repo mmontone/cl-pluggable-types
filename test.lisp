@@ -321,3 +321,14 @@
   (is (object= (gradual::parse-type 'string) 'string))
   (gradual::parse-type '(function ((function (<a>) <b>) (list <a>)) (list <b>))))
 		     
+(def-test extract-type-declarations-test ()
+  (is (equalp
+       (gradual::extract-type-declarations '((declare (ignore x))
+					     (declare (var-type x integer))
+					     (declare (fun-type f (integer -> integer)))
+					     (declare (return-type integer))))
+       '(((DECLARE (FUN-TYPE F (INTEGER -> INTEGER))))
+	 ((DECLARE (VAR-TYPE X INTEGER)))
+	 (DECLARE (RETURN-TYPE INTEGER))
+	 ((DECLARE (IGNORE X)))))))
+	 
