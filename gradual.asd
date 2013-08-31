@@ -49,6 +49,7 @@ OTHER DEALINGS IN THE SOFTWARE."
    (:file "types")
    (:file "environment")
    (:file "typechecking")
+   (:file "clos")
    (:file "inference")
    (:file "gradual-common-lisp"))
   :serial t

@@ -1,7 +1,7 @@
 (defpackage :gradual-common-lisp
   (:nicknames :gcl)
   (:import-from :common-lisp :nil)
-  (:shadow :defun :defparameter)
+  (:shadow :defun :defparameter :defclass :defmethod)
   (:use :cl :gradual)
   (:export :nil))
 
@@ -12,6 +12,15 @@
 
 (defmacro defparameter (name &optional value type)
   `(gradual::typed-defparameter ,name ,value ,type))
+
+(defmacro defclass (name direct-superclasses direct-slots &rest options)
+  `(gradual::typed-defclass ,name
+			    ,direct-superclasses
+			    ,direct-slots
+			    ,@options))
+
+(defmacro defmethod (name &rest args)
+  `(gradual::defmethod ,name ,@args))
 
 ;; Export all common-lisp package symbols
 
