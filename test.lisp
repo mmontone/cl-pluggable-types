@@ -331,4 +331,14 @@
 	 ((DECLARE (VAR-TYPE X INTEGER)))
 	 (DECLARE (RETURN-TYPE INTEGER))
 	 ((DECLARE (IGNORE X)))))))
-	 
+
+(def-test typed-defgeneric-test ()
+  (gradual::typed-defgeneric fullname (person)
+			     (:typed t)
+			     (:return-type string))
+  (is (object= (fun-type 'fullname)
+	       (fun (person) string)))
+  (gradual::typed-defgeneric surname (person)
+			     (:type (function (person) string)))
+  (is (object= (fun-type 'surname)
+	       (fun (person) string))))

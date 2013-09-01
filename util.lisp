@@ -196,6 +196,25 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	    (when aux
 	      (cons '&aux aux)))))
 
+(defun types-lambda-list-to-normal (types-lambda-list)
+  (multiple-value-bind (required optional rest keys allow-other-keys aux)
+      (parse-types-lambda-list types-lambda-list)
+    (append required
+	    (when optional
+	      (cons '&optional
+		    optional))
+	    (when rest
+	      (cons '&rest (list rest)))
+	    (when keys
+	      (cons '&key
+		    (mapcar #'first
+			    keys)))
+	    (when allow-other-keys
+	      (cons '&allow-other-keys
+		    allow-other-keys))
+	    (when aux
+	      (cons '&aux aux)))))
+
 (defun extract-type-declarations (declarations)
   (let* ((function-type-declarations 
 	  (remove-if-not (lambda (x)

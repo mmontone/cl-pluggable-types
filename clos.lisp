@@ -51,6 +51,52 @@
 						 (setf (slot-value object ',(first slot)) value)
 						 value)))))))
 
+(defmacro typed-defgeneric (fun-name lambda-list &rest options)
+  (flet ((options-remove (options list)
+	   (loop for option in list
+	      when (not (member (car option) options))
+	      collect option))
+	 (get-option (options key)
+	   (loop for option in options
+	      when (equalp key (car option))
+	      return (cadr option))))
+    (if (not (or (get-option options :typed)
+		 (get-option options :type)))
+	`(defgeneric ,fun-name ,lambda-list ,@options)
+	;; else
+	(let ((generic-function-options
+	       (options-remove
+		(list :type :typed :return-type) options))) 
+	  (if (get-option options :typed)
+	      (progn
+		(when (not (get-option options :return-type))
+		  (simple-program-error "The return-type is missing"))
+	    
+		;; Treat the generic function lambda-list as a types lambda-list
+		(multiple-value-bind (required-args-types
+				      optional-args-types
+				      rest-arg-type
+				      keyword-args-types)
+		    (parse-types-lambda-list lambda-list)
+		  `(progn
+		     (set-fun-type ',fun-name
+				   (make-function-type
+				    :required-args-types ',required-args-types
+				    :optional-args-types ',optional-args-types
+				    :rest-arg-type ',rest-arg-type
+				    :keyword-args-types ',keyword-args-types
+				    :return-type ',(get-option options :return-type)))
+		     (defgeneric ,fun-name ,(types-lambda-list-to-normal lambda-list)
+		       ,@generic-function-options))))
+	      ;; else, (getf options :type)
+	      (let ((function-type (parse-type (get-option options :type))))
+		(when (not (typep function-type 'function-type))
+		  (simple-program-error "Invalid type for generic function ~A" (get-option options :type)))
+		 `(progn
+		    (set-fun-type ',fun-name (parse-type ',(get-option options :type)))
+		    (defgeneric ,fun-name ,lambda-list
+		      ,@generic-function-options))))))))
+
 (defmacro typed-defmethod (name args &body body)
   (multiple-value-bind (remaining-forms declarations doc-string)
       (parse-body body)
