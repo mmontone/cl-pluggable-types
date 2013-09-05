@@ -53,4 +53,8 @@ OTHER DEALINGS IN THE SOFTWARE."
    (:file "inference")
    (:file "gradual-common-lisp"))
   :serial t
-  :depends-on (:cl-walker :anaphora :alexandria :mw-equiv))
+  :depends-on (:cl-walker
+	       :anaphora
+	       :alexandria
+	       :mw-equiv
+	       :closer-mop))
