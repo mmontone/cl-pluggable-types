@@ -365,7 +365,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 	(multiple-value-bind (required-args
 			      optional-args
 			      rest-arg key-args)
-	    (parse-typed-method-lambda-list args)
+	    (parse-typed-lambda-list lambda-list)
 	  (flet ((read-arg-type (arg)
 		   (let ((declared-type
 			  (or
@@ -422,8 +422,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 						       :keyword-args-types ',keyword-args-types
 						       :rest-arg-type ',rest-arg-type
 						       :return-type ',return-type))
-		   (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
-					   ,(typed-lambda-list-to-normal args)
+		   (source (walk-form `(lambda ;; ,lambda-list  -- Use this eventually
+					   ,(typed-lambda-list-to-normal lambda-list)
 					 ,@body)))
 		   (fbody (if *runtime-type-assertions-enabled*
 			      `(progn
@@ -446,7 +446,7 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 				       (mapcar #'unwalk-form (body-of source))))
 			      `(progn ,@(mapcar #'unwalk-form (body-of source))))))
 	      `(if (not (find-typed-generic-function ',name))
-		   (defmethod ,name ,@qualifiers ,(typed-method-lambda-list-to-normal args)
+		   (defmethod ,name ,@qualifiers ,(typed-lambda-list-to-normal lambda-list)
 			      ,@(remove-if (lambda (declaration)
 					     (member declaration (list 'function-type
 								       'return-type
@@ -454,30 +454,31 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 					   declarations :key #'caadr)
 			      ,fbody)
 		   ;; else
-		   (let ((gf (find-typed-generic-function ',name)))
+		   (let* ((gf (find-typed-generic-function ',name))
+			  (method-lambda (closer-mop::make-method-lambda
+					  gf
+					  (closer-mop::class-prototype (closer-mop::generic-function-method-class gf))
+					  '(lambda ,(typed-lambda-list-to-normal lambda-list)
+					    ,@(when doc-string (list doc-string))
+					    ,@(remove-if (lambda (declaration)
+							   (member declaration (list 'function-type
+										     'return-type
+										     'var-type)))
+							 declarations :key #'caadr)
+									   
+					    ,fbody)
+					  nil)))
 		     (closer-mop::add-method
 		      gf
-		      (make-instance 'standard-typed-method
+		      (make-instance 'typed-standard-method
 				     :qualifiers ',qualifiers
-				     :lambda-list ',(typed-method-lambda-list-to-normal args)
+				     :lambda-list ',(typed-lambda-list-to-normal lambda-list)
 				     :specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
-				     :function
-				     (closer-mop::make-method-lambda
-				      gf
-				      (closer-mop::class-prototype (closer-mop::generic-function-method-class gf))
-				      '(lambda ,(typed-lambda-list-to-normal args)
-					,@(when doc-string (list doc-string))
-					,@(remove-if (lambda (declaration)
-						       (member declaration (list 'function-type
-										 'return-type
-										 'var-type)))
-						     declarations :key #'caadr)
-									   
-					,fbody))
+				     :function (compile nil method-lambda)	     
 				     :walked-source
 				     (walk-form
-				      '(defun ,name ;; ,args  -- Use this eventually
-					,(typed-lambda-list-to-normal args)
+				      '(lambda ;; ,lambda-list  -- Use this eventually
+					,(typed-lambda-list-to-normal lambda-list)
 					,@(when doc-string (list doc-string))
 					,@(remove-if (lambda (declaration)
 						       (member declaration (list 'function-type
@@ -485,11 +486,10 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 										 'var-type)))
 						     declarations :key #'caadr)
 					,fbody))
-				     :type ,function-type)))
-							      
-		   (when *typechecking-enabled*
-		     (typecheck))
-		   ',name))))))))
+				     :type ,function-type))
+		     (when *typechecking-enabled*
+		       (typecheck))
+		     ',name)))))))))
 
 (defmethod make-instance ((class cons) &rest initargs)
   "Instantiate a polymorphic class"
@@ -531,7 +531,8 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
    #+nil(source :initarg :source
 	   :initform (error "Provide the source")
 	   :accessor generic-function-source)
-   ))
+   )
+  (:metaclass closer-mop:funcallable-standard-class))
 
 (defmethod initialize-instance :after ((generic-function typed-standard-generic-function)
 				       &rest initargs)
