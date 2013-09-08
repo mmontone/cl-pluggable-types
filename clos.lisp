@@ -43,24 +43,27 @@
 		      (getf props :type))
 	    appending (append
 		       (when (getf props :accessor)
-			 (list `(typed-defmethod ,(getf props :accessor) ((object ,name))
-						 (declare (return-type ,(getf props :type)))
-						 (slot-value object ',(first slot)))
-			       `(typed-defmethod (setf ,(getf props :accessor))
-						 ((value ,(getf props :type)) (object ,name))
-						 (declare (return-type ,(getf props :type)))
-						 (setf (slot-value object ',(first slot)) value)
-						 value)))
+			 (list
+			  `(typed-defmethod ,(getf props :accessor) ((object ,name))
+			     (declare (return-type ,(getf props :type)))
+			     (slot-value object ',(first slot)))
+			  `(typed-defmethod (setf ,(getf props :accessor))
+			       ((value ,(getf props :type)) (object ,name))
+			     (declare (return-type ,(getf props :type)))
+			     (setf (slot-value object ',(first slot)) value)
+			     value)))
 		       (when (getf props :reader)
-			 (list `(typed-defmethod ,(getf props :reader) ((object ,name))
-						 (declare (return-type ,(getf props :type)))
-						 (slot-value object ',(first slot)))))
+			 (list
+			  `(typed-defmethod ,(getf props :reader) ((object ,name))
+			     (declare (return-type ,(getf props :type)))
+			     (slot-value object ',(first slot)))))
 		       (when (getf props :writer)
-			 (list `(typed-defmethod (setf ,(getf props :writer))
-						 ((value ,(getf props :type)) (object ,name))
-						 (declare (return-type ,(getf props :type)))
-						 (setf (slot-value object ',(first slot)) value)
-						 value)))))))
+			 (list
+			  `(typed-defmethod (setf ,(getf props :writer))
+			       ((value ,(getf props :type)) (object ,name))
+			     (declare (return-type ,(getf props :type)))
+			     (setf (slot-value object ',(first slot)) value)
+			     value)))))))
 
 (defmacro typed-defgeneric (fun-name lambda-list &rest options)
   (flet ((options-remove (options list)
@@ -71,13 +74,23 @@
 	   (loop for option in options
 	      when (equalp key (car option))
 	      return (cadr option))))
+
+    ;; If the generic function definition doesn't contain a :typed or :type option,
+    ;; then we assume the generic function to be untyped
     (if (not (or (get-option options :typed)
 		 (get-option options :type)))
 	`(defgeneric ,fun-name ,lambda-list ,@options)
 	;; else
+	;; we assume the generic function is typed
 	(let ((generic-function-options
 	       (options-remove
-		(list :type :typed :return-type) options))) 
+		(list :type :typed :return-type) options)))
+	  
+	  (when (get-option options :generic-function-class)
+	    (error "Invalid option :generic-function-class for a typed generic function"))
+	  (when (get-option options :method-class)
+	    (error "Invalid option :method-class for a typed generic function"))
+
 	  (if (get-option options :typed)
 	      (progn
 		(when (not (get-option options :return-type))
@@ -89,24 +102,29 @@
 				      rest-arg-type
 				      keyword-args-types)
 		    (parse-types-lambda-list lambda-list)
-		  `(progn
-		     (set-fun-type ',fun-name
-				   (make-function-type
-				    :required-args-types ',required-args-types
-				    :optional-args-types ',optional-args-types
-				    :rest-arg-type ',rest-arg-type
-				    :keyword-args-types ',keyword-args-types
-				    :return-type ',(get-option options :return-type)))
-		     (defgeneric ,fun-name ,(types-lambda-list-to-normal lambda-list)
-		       ,@generic-function-options))))
+		  `(closer-mop:ensure-generic-function
+		    ',fun-name
+		    :lambda-list ',(types-lambda-list-to-normal lambda-list)
+		    :type (make-function-type
+			   :required-args-types ',required-args-types
+			   :optional-args-types ',optional-args-types
+			   :rest-arg-type ',rest-arg-type
+			   :keyword-args-types ',keyword-args-types
+			   :return-type ',(get-option options :return-type))
+		    :generic-function-class 'typed-standard-generic-function
+		    :method-class 'typed-standard-method
+		    ,@generic-function-options)))
 	      ;; else, (getf options :type)
 	      (let ((function-type (parse-type (get-option options :type))))
 		(when (not (typep function-type 'function-type))
 		  (simple-program-error "Invalid type for generic function ~A" (get-option options :type)))
-		 `(progn
-		    (set-fun-type ',fun-name (parse-type ',(get-option options :type)))
-		    (defgeneric ,fun-name ,lambda-list
-		      ,@generic-function-options))))))))
+		`(closer-mop:ensure-generic-function
+		  ',fun-name
+		  :lambda-list ,lambda-list
+		  :type (parse-type ',(get-option options :type))
+		  :generic-function-class typed-standard-generic-function
+		  :method-class typed-standard-method
+		  ,@generic-function-options)))))))
 
 (defun parse-defmethod (form)
   (let ((name (first form))
@@ -331,9 +349,10 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 (defmacro typed-defmethod (&rest args)
   ;; Our approach here is this:
   ;; If there's not previous typed generic function, then
-  ;; we throw a warning and consider the method/generic function untyped.
+  ;; we throw a warning?? and consider the method/generic function untyped.
   (multiple-value-bind (name qualifiers lambda-list body)
       (parse-defmethod args)
+    (declare (ignorable lambda-list))
     (multiple-value-bind (remaining-forms declarations doc-string)
 	(parse-body body)
       (declare (ignore remaining-forms))
@@ -347,102 +366,130 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 			      optional-args
 			      rest-arg key-args)
 	    (parse-typed-method-lambda-list args)
-	(flet ((read-arg-type (arg)
-		 (let ((declared-type
-			(or
-			 (aand
-			  (find arg var-type-declarations
-				:key (lambda (declaration)
-				       (destructuring-bind (declare (var-type var type)) declaration
-					 (declare (ignore declare var-type type))
-					 var)))
-			  (destructuring-bind (declare (var-type var type))
-			      it
-			    (declare (ignore declare var-type var))
-			    type))
-			 t))
-		       (lambda-list-type (or (aand (or (find arg (append required-args
-									 optional-args
-									 (list rest-arg))
-							     :key #'first)
-						       (find arg key-args
-							     :key (compose #'second #'first)))
-						   (if (equalp (length it) 2)
-						       (second it)
-						       (third it)))
-					     t)))
-		   (when (not (or (and (equalp lambda-list-type t)
-				       (equalp declared-type t))
-				  (or (equalp lambda-list-type t)
-				      (equalp declared-type t))))
-		     (error "Duplicate type declaration for ~A. Declaration type: ~A lambda list type: ~A"
-			    arg declared-type lambda-list-type))
-		   (or (and (equalp lambda-list-type t)
-			    declared-type)
-		       (and (equalp declared-type t)
-			    lambda-list-type)))))
-	  (when function-type-declarations
-	    (warn "~A doesn't make sense here" function-type-declarations))
-	  (let* ((return-type (or (and return-type-declaration
-				       (destructuring-bind (DECLARE (RETURN-TYPE type))
-					   return-type-declaration
-					 (declare (ignore declare return-type))
-					 type))
-				  t))
-		 (required-args-types (mapcar #'read-arg-type (mapcar #'first required-args)))
-		 (optional-args-types (mapcar #'read-arg-type (mapcar #'first optional-args)))
-		 (keyword-args-types (mapcar (lambda (arg)
-					       (cons arg
-						     (read-arg-type arg)))
-					     (mapcar (compose #'second #'first) key-args)))
-		 (rest-arg-type (when rest-arg (read-arg-type (first rest-arg))))
-		 (function-type `(make-function-type :required-args-types ',required-args-types
-						     :optional-args-types ',optional-args-types
-						     :keyword-args-types ',keyword-args-types
-						     :rest-arg-type ',rest-arg-type
-						     :return-type ',return-type))
-		 (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
-					 ,(typed-lambda-list-to-normal args)
-				       ,@body)))
-		 (fbody (if *runtime-type-assertions-enabled*
-			    `(progn
-			       ,@(loop for arg in (append (mapcar #'first required-args)
-							  (mapcar #'first optional-args)
-							  (mapcar (compose #'second #'first) key-args))
-				    for arg-type = (read-arg-type arg)
-				    when (not (equalp arg-type t))
-				    collect `(check-gradual-type ,arg ',arg-type))
-			       ,@(when rest-arg
-				       (with-unique-names (rest-elem)
-					 (let ((arg-type (read-arg-type (first rest-arg))))
-					   `((loop for ,rest-elem in ,(first rest-arg)
-						do (check-gradual-type ,rest-elem ',arg-type))))))
-			       ,@(if (not (equalp return-type t))
-				     (with-unique-names (result)
-				       `((let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
-					   (check-gradual-type ,result ',return-type)
-					   ,result)))
-				     (mapcar #'unwalk-form (body-of source))))
-			    `(progn ,@(mapcar #'unwalk-form (body-of source))))))
-	    `(if (not (fun-type ',name))
-		 (warn "No generic function. ~A method is untyped when defining method"
-		       ',name)
-		 ;; else
-		 (progn
-		   (add-typed-method ',name (make-instance 'typed-method
-							   :source (walk-form '(defun ,name ;; ,args  -- Use this eventually
-										,(typed-lambda-list-to-normal args)
-										,@body))
-							   :type ,function-type))
-		   (defmethod ,name ,(typed-method-lambda-list-to-normal args)
-		     ,@(when doc-string (list doc-string))
-		     ,@(remove-if (lambda (declaration)
-				    (member declaration (list 'function-type 'return-type 'var-type)))
-				  declarations :key #'caadr)
-		     ,fbody)
+	  (flet ((read-arg-type (arg)
+		   (let ((declared-type
+			  (or
+			   (aand
+			    (find arg var-type-declarations
+				  :key (lambda (declaration)
+					 (destructuring-bind
+					       (declare (var-type var type))
+					     declaration
+					   (declare (ignore declare var-type type))
+					   var)))
+			    (destructuring-bind (declare (var-type var type))
+				it
+			      (declare (ignore declare var-type var))
+			      type))
+			   t))
+			 (lambda-list-type (or (aand (or (find arg (append required-args
+									   optional-args
+									   (list rest-arg))
+							       :key #'first)
+							 (find arg key-args
+							       :key (compose #'second #'first)))
+						     (if (equalp (length it) 2)
+							 (second it)
+							 (third it)))
+					       t)))
+		     (when (not (or (and (equalp lambda-list-type t)
+					 (equalp declared-type t))
+				    (or (equalp lambda-list-type t)
+					(equalp declared-type t))))
+		       (error "Duplicate type declaration for ~A. Declaration type: ~A lambda list type: ~A"
+			      arg declared-type lambda-list-type))
+		     (or (and (equalp lambda-list-type t)
+			      declared-type)
+			 (and (equalp declared-type t)
+			      lambda-list-type)))))
+	    (when function-type-declarations
+	      (warn "~A doesn't make sense here" function-type-declarations))
+	    (let* ((return-type (or (and return-type-declaration
+					 (destructuring-bind (DECLARE (RETURN-TYPE type))
+					     return-type-declaration
+					   (declare (ignore declare return-type))
+					   type))
+				    t))
+		   (required-args-types (mapcar #'read-arg-type (mapcar #'first required-args)))
+		   (optional-args-types (mapcar #'read-arg-type (mapcar #'first optional-args)))
+		   (keyword-args-types (mapcar (lambda (arg)
+						 (cons arg
+						       (read-arg-type arg)))
+					       (mapcar (compose #'second #'first) key-args)))
+		   (rest-arg-type (when rest-arg (read-arg-type (first rest-arg))))
+		   (function-type `(make-function-type :required-args-types ',required-args-types
+						       :optional-args-types ',optional-args-types
+						       :keyword-args-types ',keyword-args-types
+						       :rest-arg-type ',rest-arg-type
+						       :return-type ',return-type))
+		   (source (walk-form `(defun ,name ;; ,args  -- Use this eventually
+					   ,(typed-lambda-list-to-normal args)
+					 ,@body)))
+		   (fbody (if *runtime-type-assertions-enabled*
+			      `(progn
+				 ,@(loop for arg in (append (mapcar #'first required-args)
+							    (mapcar #'first optional-args)
+							    (mapcar (compose #'second #'first) key-args))
+				      for arg-type = (read-arg-type arg)
+				      when (not (equalp arg-type t))
+				      collect `(check-gradual-type ,arg ',arg-type))
+				 ,@(when rest-arg
+					 (with-unique-names (rest-elem)
+					   (let ((arg-type (read-arg-type (first rest-arg))))
+					     `((loop for ,rest-elem in ,(first rest-arg)
+						  do (check-gradual-type ,rest-elem ',arg-type))))))
+				 ,@(if (not (equalp return-type t))
+				       (with-unique-names (result)
+					 `((let ((,result (progn ,@(mapcar #'unwalk-form (body-of source)))))
+					     (check-gradual-type ,result ',return-type)
+					     ,result)))
+				       (mapcar #'unwalk-form (body-of source))))
+			      `(progn ,@(mapcar #'unwalk-form (body-of source))))))
+	      `(if (not (find-typed-generic-function ',name))
+		   (defmethod ,name ,@qualifiers ,(typed-method-lambda-list-to-normal args)
+			      ,@(remove-if (lambda (declaration)
+					     (member declaration (list 'function-type
+								       'return-type
+								       'var-type)))
+					   declarations :key #'caadr)
+			      ,fbody)
+		   ;; else
+		   (let ((gf (find-typed-generic-function ',name)))
+		     (closer-mop::add-method
+		      gf
+		      (make-instance 'standard-typed-method
+				     :qualifiers ',qualifiers
+				     :lambda-list ',(typed-method-lambda-list-to-normal args)
+				     :specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
+				     :function
+				     (closer-mop::make-method-lambda
+				      gf
+				      (closer-mop::class-prototype (closer-mop::generic-function-method-class gf))
+				      '(lambda ,(typed-lambda-list-to-normal args)
+					,@(when doc-string (list doc-string))
+					,@(remove-if (lambda (declaration)
+						       (member declaration (list 'function-type
+										 'return-type
+										 'var-type)))
+						     declarations :key #'caadr)
+									   
+					,fbody))
+				     :walked-source
+				     (walk-form
+				      '(defun ,name ;; ,args  -- Use this eventually
+					,(typed-lambda-list-to-normal args)
+					,@(when doc-string (list doc-string))
+					,@(remove-if (lambda (declaration)
+						       (member declaration (list 'function-type
+										 'return-type
+										 'var-type)))
+						     declarations :key #'caadr)
+					,fbody))
+				     :type ,function-type)))
+							      
 		   (when *typechecking-enabled*
 		     (typecheck))
-		   ',name)))))))))
+		   ',name))))))))
 
 (defmethod make-instance ((class cons) &rest initargs)
   "Instantiate a polymorphic class"
@@ -466,3 +513,193 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
         (push (car rest) declarations)
         (return-from split-off-declarations
           (values (nreverse declarations) rest)))))
+
+(defclass typed-standard-method (standard-method)
+  ((type :initarg :type
+	 :initform (error "Provide the type")
+	 :accessor method-type)
+   (walked-source :initarg :walked-source
+		  :initform (error "Provide the walked source")
+		  :accessor method-source)))
+
+(defvar *typed-generic-functions* nil)
+
+(defclass typed-standard-generic-function (standard-generic-function)
+  ((type :initarg :type
+	 :initform (error "Provide the type")
+	 :accessor generic-function-type)
+   #+nil(source :initarg :source
+	   :initform (error "Provide the source")
+	   :accessor generic-function-source)
+   ))
+
+(defmethod initialize-instance :after ((generic-function typed-standard-generic-function)
+				       &rest initargs)
+  (declare (ignore initargs))
+  (setf *typed-generic-functions* (remove generic-function *typed-generic-functions*))
+  (push generic-function *typed-generic-functions*))
+
+(defun list-all-typed-generic-functions ()
+  *typed-generic-functions*)
+
+(defun find-typed-generic-function (name &optional (errorp t))
+  (or (find name *typed-generic-functions*
+	    :key #'closer-mop:generic-function-name)
+      (and errorp
+	   (error "Typed generic function ~A not found" name))))
+
+(defun parse-typed-generic-function-lambda-list
+    (lambda-list &key (normalize t)
+		   allow-specializers
+		   (normalize-optional normalize)
+		   (normalize-keyword normalize)
+		   (normalize-auxilary normalize))
+  "Parses a types lambda-list, returning as multiple values:
+
+1. Required parameters.
+
+2. Optional parameter specifications, normalized into form:
+
+   (name init suppliedp)
+
+3. Name of the rest parameter, or NIL.
+
+4. Keyword parameter specifications, normalized into form:
+
+   ((keyword-name name) init suppliedp)
+
+5. Boolean indicating &ALLOW-OTHER-KEYS presence.
+
+6. &AUX parameter specifications, normalized into form
+
+   (name init).
+
+7. Existence of &KEY in the lambda-list.
+
+Signals a PROGRAM-ERROR is the lambda-list is malformed."
+  (let ((state :required)
+        (allow-other-keys nil)
+        (auxp nil)
+        (required nil)
+        (optional nil)
+        (rest nil)
+        (keys nil)
+        (keyp nil)
+        (aux nil))
+    (labels ((fail (elt)
+               (simple-program-error "Misplaced ~S in types lambda-list:~%  ~S"
+                                     elt lambda-list))
+             (check-variable (elt what &optional (allow-specializers allow-specializers))
+               (unless (and (or (symbolp elt)
+                                (and allow-specializers
+                                     (consp elt) (= 2 (length elt)) (symbolp (first elt))))
+                            (not (constantp elt)))
+                 (simple-program-error "Invalid ~A ~S in ordinary lambda-list:~%  ~S"
+                                       what elt lambda-list)))
+             (check-spec (spec what)
+               (destructuring-bind (init suppliedp) spec
+                 (declare (ignore init))
+                 (check-variable suppliedp what nil)))
+	     (check-type-spec (type what)
+	       ;; TODO: verify type spec validity. symbolp is not enough
+	       #+nil(unless (symbolp type)
+		      (simple-program-error "Invalid ~A type spec ~A in types lambda list:~% ~S"
+					    what
+					    type
+					    lambda-list))))
+      (dolist (elt lambda-list)
+        (case elt
+          (&optional
+           (if (eq state :required)
+               (setf state elt)
+               (fail elt)))
+          (&rest
+           (if (member state '(:required &optional))
+               (setf state elt)
+               (fail elt)))
+          (&key
+           (if (member state '(:required &optional :after-rest))
+               (setf state elt)
+               (fail elt))
+           (setf keyp t))
+          (&allow-other-keys
+           (if (eq state '&key)
+               (setf allow-other-keys t
+                     state elt)
+               (fail elt)))
+          (&aux
+           (cond ((eq state '&rest)
+                  (fail elt))
+                 (auxp
+                  (simple-program-error "Multiple ~S in types lambda-list:~%  ~S"
+                                        elt lambda-list))
+                 (t
+                  (setf auxp t
+                        state elt))))
+          (otherwise
+           (when (member elt '#.(set-difference lambda-list-keywords
+                                                '(&optional &rest &key &allow-other-keys &aux)))
+             (simple-program-error
+              "Bad lambda-list keyword ~S in types lambda-list:~%  ~S"
+              elt lambda-list))
+           (case state
+             (:required
+              (check-type-spec elt "required parameter")
+              (push elt required))
+             (&optional
+	      (check-type-spec elt "optional parameter")
+	      (push elt optional))
+             (&rest
+              (check-type-spec elt "rest parameter")
+              (setf rest elt
+                    state :after-rest))
+             (&key
+	      (if (symbolp elt)
+		  (progn
+		    (check-variable elt "keyword parameter")
+		    (push (cons elt t) keys))
+		  ;; else
+		  (progn
+		    (when (not (and (consp elt)
+				    (equalp (length elt) 2)))
+		      (simple-program-error "Invalid keyword type spec ~A in lambda-list:~% ~S"
+					    elt
+					    lambda-list))
+		    (destructuring-bind (var type) elt
+		      (check-variable var "keyword parameter")
+		      (check-type-spec type "keyword parameter")
+		      (push (cons (car elt) (cadr elt)) keys)))))
+             (&aux
+              (if (consp elt)
+                  (destructuring-bind (var &optional init) elt
+                    (declare (ignore init))
+                    (check-variable var "&aux parameter"))
+                  (progn
+                    (check-variable elt "&aux parameter")
+                    (setf elt (list* elt (when normalize-auxilary
+                                           '(nil))))))
+              (push elt aux))
+             (t
+              (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
+    (values (nreverse required) (nreverse optional) rest (nreverse keys)
+            allow-other-keys (nreverse aux) keyp)))
+
+(defun typed-generic-function-lambda-list-to-normal (typed-lambda-list)
+  (multiple-value-bind (required optional rest
+				 keys allow-other-keys aux)
+      (parse-typed-generic-function-lambda-list typed-lambda-list)
+    (append required
+	    (when optional
+	      (cons '&optional
+		    optional))
+	    (when rest
+	      (cons '&rest (list rest)))
+	    (when keys
+	      (cons '&key
+		    (mapcar #'first
+			    keys)))
+	    (when allow-other-keys
+	      (cons '&allow-other-keys
+		    allow-other-keys))
+	    (when aux
+	      (cons '&aux aux)))))
