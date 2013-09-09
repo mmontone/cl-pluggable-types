@@ -145,18 +145,18 @@
 (defmethod gradual-subtypep (t1 (t2 cons))
   (if (object= (first t2) 'values)
       (gradual-subtypep t1 (second t2))
-      (subtypep t1 t2)))
+      (call-next-method)))
 
 (defmethod gradual-subtypep ((t1 cons) t2)
   (if (object= (first t1) 'values)
       (gradual-subtypep (second t1) t2)
-      (subtypep t1 t2)))
+      (call-next-method)))
 
 (defmethod gradual-subtypep ((t1 function-type) t2)
-  (subtypep (function-type-spec t1) t2))
+  (gradual-subtypep (function-type-spec t1) t2))
 
 (defmethod gradual-subtypep (t1 (t2 function-type))
-  (subtypep t1 (function-type-spec t2)))
+  (gradual-subtypep t1 (function-type-spec t2)))
 
 ;; Types parsing
 

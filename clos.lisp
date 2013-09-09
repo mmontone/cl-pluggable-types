@@ -295,25 +295,24 @@
 									   
 					    ,fbody)
 					  nil)))
-		     (closer-mop::add-method
-		      gf
-		      (make-instance 'typed-standard-method
-				     :qualifiers ',qualifiers
-				     :lambda-list ',(typed-lambda-list-to-normal lambda-list)
-				     :specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
-				     :function (compile nil method-lambda)	     
-				     :walked-source
-				     (walk-form
-				      '(lambda ;; ,lambda-list  -- Use this eventually
-					,(typed-lambda-list-to-normal lambda-list)
-					,@(when doc-string (list doc-string))
-					,@(remove-if (lambda (declaration)
-						       (member declaration (list 'function-type
-										 'return-type
-										 'var-type)))
-						     declarations :key #'caadr)
-					,fbody))
-				     :type ,function-type))
-		     (when *typechecking-enabled*
-		       (typecheck-everything))
-		     ',name)))))))))
+		     (let ((method (make-instance 'typed-standard-method
+						  :qualifiers ',qualifiers
+						  :lambda-list ',(typed-lambda-list-to-normal lambda-list)
+						  :specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
+						  :function (compile nil method-lambda)	     
+						  :walked-source
+						  (walk-form
+						   '(lambda ;; ,lambda-list  -- Use this eventually
+						     ,(typed-lambda-list-to-normal lambda-list)
+						     ,@(when doc-string (list doc-string))
+						     ,@(remove-if (lambda (declaration)
+								    (member declaration (list 'function-type
+											      'return-type
+											      'var-type)))
+								  declarations :key #'caadr)
+						     ,fbody))
+						  :type ,function-type)))
+		       (closer-mop::add-method gf method)
+		       (when *typechecking-enabled*
+			 (typecheck-everything))
+		       method))))))))))

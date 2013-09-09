@@ -23,7 +23,7 @@
 
 (defgeneric typecheck (thing &rest args)
   (:method ((form walked-form) &rest args)
-    (apply #'typecheck-form form
+    (apply #'%typecheck-form form
 	   args))
   (:method ((method typed-standard-method) &rest args)
     (declare (ignore args))
@@ -321,7 +321,17 @@
   (fun (&rest t) t))
 
 (defun typecheck-typed-generic-function (gf)
-  )
+  (loop for method in (closer-mop:generic-function-methods gf)
+       do (typecheck method))
+  (generic-function-type gf))
 
 (defun typecheck-typed-method (method)
-  )
+  (let ((gf-type (generic-function-type (closer-mop:method-generic-function method))))
+    (let ((method-type
+	   (typecheck (method-source method) (make-typing-environment))))
+      (when (not (gradual-subtypep method-type gf-type))
+	(gradual-type-error (unwalk-form (method-source method))
+			    "Invalid method type ~A for generic function with type ~A"
+			    method-type
+			    gf-type))
+      method-type)))
