@@ -30,6 +30,45 @@
 
 ;; (make-instance '(queue integer))
 
+(defmethod make-instance ((class cons) &rest initargs)
+  "Instantiate a polymorphic class"
+  (error "Not implemented"))
+
+(defvar *typed-generic-functions* nil)
+
+(defclass typed-standard-generic-function (standard-generic-function)
+  ((type :initarg :type
+	 :initform (error "Provide the type")
+	 :accessor generic-function-type)
+   #+nil(source :initarg :source
+	   :initform (error "Provide the source")
+	   :accessor generic-function-source)
+   )
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass typed-standard-method (standard-method)
+  ((type :initarg :type
+	 :initform (error "Provide the type")
+	 :accessor method-type)
+   (walked-source :initarg :walked-source
+		  :initform (error "Provide the walked source")
+		  :accessor method-source)))
+
+(defmethod initialize-instance :after ((generic-function typed-standard-generic-function)
+				       &rest initargs)
+  (declare (ignore initargs))
+  (setf *typed-generic-functions* (remove generic-function *typed-generic-functions*))
+  (push generic-function *typed-generic-functions*))
+
+(defun list-all-typed-generic-functions ()
+  *typed-generic-functions*)
+
+(defun find-typed-generic-function (name &optional (errorp t))
+  (or (find name *typed-generic-functions*
+	    :key #'closer-mop:generic-function-name)
+      (and errorp
+	   (error "Typed generic function ~A not found" name))))
+
 (defmacro typed-defclass (name direct-superclasses direct-slots &rest options)
   `(progn
      (defclass ,name ,direct-superclasses
@@ -133,218 +172,6 @@
         ((not (symbolp (car rest)))
          (values name (nreverse qualifiers) (car rest) (cdr rest)))
       (push (car rest) qualifiers))))
-
-(defun parse-typed-method-lambda-list (lambda-list &key (normalize t)
-						     allow-specializers
-						     (normalize-optional normalize)
-						     (normalize-keyword normalize)
-						     (normalize-auxilary normalize))
-  "Parses a gradual typed method lambda-list, returning as multiple values:
-
-1. Required parameters.
-
-2. Optional parameter specifications, normalized into form:
-
-   (name init suppliedp)
-
-3. Name of the rest parameter, or NIL.
-
-4. Keyword parameter specifications, normalized into form:
-
-   ((keyword-name name) init suppliedp)
-
-5. Boolean indicating &ALLOW-OTHER-KEYS presence.
-
-6. &AUX parameter specifications, normalized into form
-
-   (name init).
-
-7. Existence of &KEY in the lambda-list.
-
-Signals a PROGRAM-ERROR is the lambda-list is malformed."
-  (let ((state :required)
-        (allow-other-keys nil)
-        (auxp nil)
-        (required nil)
-        (optional nil)
-        (rest nil)
-        (keys nil)
-        (keyp nil)
-        (aux nil))
-    (labels ((fail (elt)
-               (simple-program-error "Misplaced ~S in ordinary lambda-list:~%  ~S"
-                                     elt lambda-list))
-             (check-variable (elt what &optional (allow-specializers allow-specializers))
-               (unless (and (or (symbolp elt)
-                                (and allow-specializers
-                                     (consp elt) (= 2 (length elt)) (symbolp (first elt))))
-                            (not (constantp elt)))
-                 (simple-program-error "Invalid ~A ~S in gradual lambda-list:~%  ~S"
-                                       what elt lambda-list)))
-	     (check-type-spec (type what)
-	       (declare (ignore type what))
-	       ;; TODO: how to verify a typespec is valid? symbolp is not enough
-	       #+nil(unless (symbolp type)
-		 (simple-program-error "Invalid ~A type spec ~A in typed lambda list:~% ~S"
-				       what
-				       type
-				       lambda-list)))
-             (check-spec (spec what)
-               (destructuring-bind (init &optional type suppliedp) spec
-                 (declare (ignore init))
-		 (when type
-		   (check-type-spec type what))
-		 (when suppliedp
-		   (check-variable suppliedp what nil)))))
-      (dolist (elt lambda-list)
-        (case elt
-          (&optional
-           (if (eq state :required)
-               (setf state elt)
-               (fail elt)))
-          (&rest
-           (if (member state '(:required &optional))
-               (setf state elt)
-               (fail elt)))
-          (&key
-           (if (member state '(:required &optional :after-rest))
-               (setf state elt)
-               (fail elt))
-           (setf keyp t))
-          (&allow-other-keys
-           (if (eq state '&key)
-               (setf allow-other-keys t
-                     state elt)
-               (fail elt)))
-          (&aux
-           (cond ((eq state '&rest)
-                  (fail elt))
-                 (auxp
-                  (simple-program-error "Multiple ~S in ordinary lambda-list:~%  ~S"
-                                        elt lambda-list))
-                 (t
-                  (setf auxp t
-                        state elt))
-                 ))
-          (otherwise
-           (when (member elt '#.(set-difference lambda-list-keywords
-                                                '(&optional &rest &key &allow-other-keys &aux)))
-             (simple-program-error
-              "Bad lambda-list keyword ~S in ordinary lambda-list:~%  ~S"
-              elt lambda-list))
-           (case state
-             (:required
-	      (if (listp elt)
-		  (destructuring-bind (var type-or-specializer) elt
-		    (check-variable var "required parameter")
-		    (check-type-spec type-or-specializer "required parameter")
-		    (let ((type
-			   (or (and (consp type-or-specializer)
-				    (equalp (first type-or-specializer)
-					    'eql)
-				    (or (ignore-errors
-					  (%typecheck-form
-					   (walk-form (second type-or-specializer))
-					   (make-typing-environment)))
-					t))
-			       type-or-specializer)))
-		      (push (list var type-or-specializer type) required)))
-		  ; else
-		  (progn
-		    (check-variable elt "required parameter")
-		    (push (list elt t t) required))))
-             (&optional
-              (cond ((consp elt)
-                     (destructuring-bind (name &rest tail) elt
-                       (check-variable name "optional parameter")
-                       (cond ((cdr tail)
-                              (check-spec tail "optional-supplied-p parameter"))
-                             (normalize-optional
-                              (setf elt (append elt '(t)))))))
-                    (t
-                     (check-variable elt "optional parameter")
-                     (when normalize-optional
-                       (setf elt (cons elt '(nil t))))))
-              (push (ensure-list elt) optional))
-             (&rest
-	      (if (consp elt)
-		  (destructuring-bind (var type) elt
-		    (check-variable var "rest parameter")
-		    (check-type-spec type "rest parameter")
-		    (setf rest elt))
-		  ;; else
-		  (progn
-		    (check-variable elt "rest parameter")
-		    (setf rest (list elt t))))
-	      (setf state :after-rest))
-             (&key
-              (cond ((consp elt)
-                     (destructuring-bind (var-or-kv &rest tail) elt
-                       (cond ((consp var-or-kv)
-                              (destructuring-bind (keyword var) var-or-kv
-                                (unless (symbolp keyword)
-                                  (simple-program-error "Invalid keyword name ~S in ordinary ~
-                                                         lambda-list:~%  ~S"
-                                                        keyword lambda-list))
-                                (check-variable var "keyword parameter")))
-                             (t
-                              (check-variable var-or-kv "keyword parameter")
-                              (when normalize-keyword
-                                (setf var-or-kv (list (make-keyword var-or-kv) var-or-kv))
-				)))
-                       (if (cdr tail)
-                           (check-spec tail "keyword-supplied-p parameter")
-                           (when normalize-keyword
-                             (setf tail (append tail '(t)))))
-                       (setf elt (cons var-or-kv tail))))
-                    (t
-                     (check-variable elt "keyword parameter")
-                     (setf elt (if normalize-keyword
-                                   (list (list (make-keyword elt) elt) nil t)
-                                   elt))))
-              (push elt keys))
-             (&aux
-              (if (consp elt)
-                  (destructuring-bind (var &optional init) elt
-                    (declare (ignore init))
-                    (check-variable var "&aux parameter"))
-                  (progn
-                    (check-variable elt "&aux parameter")
-                    (setf elt (list* elt (when normalize-auxilary
-                                           '(nil))))))
-              (push elt aux))
-             (t
-              (simple-program-error "Invalid typed lambda-list:~%  ~S" lambda-list)))))))
-    (values (nreverse required) (nreverse optional) rest (nreverse keys)
-            allow-other-keys (nreverse aux) keyp)))
-
-(defun typed-method-lambda-list-to-normal (typed-lambda-list)
-  (multiple-value-bind (required optional rest
-				 keys allow-other-keys aux)
-      (parse-typed-method-lambda-list typed-lambda-list)
-    (append (mapcar (lambda (arg)
-		      (list (first arg)
-			    (second arg)))
-		    required)
-	    (when optional
-	      (cons '&optional
-		    (mapcar (lambda (arg)
-			      (list (first arg)
-				    (second arg)))
-			    optional)))
-	    (when rest
-	      (cons '&rest (list (first rest))))
-	    (when keys
-	      (cons '&key
-		    (mapcar (lambda (arg)
-			      (list (first arg)
-				    (second arg)))
-			    keys)))
-	    (when allow-other-keys
-	      (cons '&allow-other-keys
-		    allow-other-keys))
-	    (when aux
-	      (cons '&aux aux)))))
 
 (defmacro typed-defmethod (&rest args)
   ;; Our approach here is this:
@@ -491,216 +318,3 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
 		       (typecheck))
 		     ',name)))))))))
 
-(defmethod make-instance ((class cons) &rest initargs)
-  "Instantiate a polymorphic class"
-  (error "Not implemented"))
-
-#+nil(defun slots-for-class (class-name)
-  (let ((class (find-class class-name)))
-    (nconc (mapcar #'closer-mop:slot-definition-name
-                   (class-instance-slots class))
-           (mapcar #'closer-mop:slot-definition-name
-                   (closer-mop:class-class-slots class)))))
-
-(defun split-off-declarations (body)
-  (do ((rest body (cdr rest))
-       (declarations nil))
-      ((null rest)
-       (values declarations nil))
-    (if (or (stringp (car rest))
-            (and (listp (car rest))
-                 (eq 'declare (car (car rest)))))
-        (push (car rest) declarations)
-        (return-from split-off-declarations
-          (values (nreverse declarations) rest)))))
-
-(defclass typed-standard-method (standard-method)
-  ((type :initarg :type
-	 :initform (error "Provide the type")
-	 :accessor method-type)
-   (walked-source :initarg :walked-source
-		  :initform (error "Provide the walked source")
-		  :accessor method-source)))
-
-(defvar *typed-generic-functions* nil)
-
-(defclass typed-standard-generic-function (standard-generic-function)
-  ((type :initarg :type
-	 :initform (error "Provide the type")
-	 :accessor generic-function-type)
-   #+nil(source :initarg :source
-	   :initform (error "Provide the source")
-	   :accessor generic-function-source)
-   )
-  (:metaclass closer-mop:funcallable-standard-class))
-
-(defmethod initialize-instance :after ((generic-function typed-standard-generic-function)
-				       &rest initargs)
-  (declare (ignore initargs))
-  (setf *typed-generic-functions* (remove generic-function *typed-generic-functions*))
-  (push generic-function *typed-generic-functions*))
-
-(defun list-all-typed-generic-functions ()
-  *typed-generic-functions*)
-
-(defun find-typed-generic-function (name &optional (errorp t))
-  (or (find name *typed-generic-functions*
-	    :key #'closer-mop:generic-function-name)
-      (and errorp
-	   (error "Typed generic function ~A not found" name))))
-
-(defun parse-typed-generic-function-lambda-list
-    (lambda-list &key (normalize t)
-		   allow-specializers
-		   (normalize-optional normalize)
-		   (normalize-keyword normalize)
-		   (normalize-auxilary normalize))
-  "Parses a types lambda-list, returning as multiple values:
-
-1. Required parameters.
-
-2. Optional parameter specifications, normalized into form:
-
-   (name init suppliedp)
-
-3. Name of the rest parameter, or NIL.
-
-4. Keyword parameter specifications, normalized into form:
-
-   ((keyword-name name) init suppliedp)
-
-5. Boolean indicating &ALLOW-OTHER-KEYS presence.
-
-6. &AUX parameter specifications, normalized into form
-
-   (name init).
-
-7. Existence of &KEY in the lambda-list.
-
-Signals a PROGRAM-ERROR is the lambda-list is malformed."
-  (let ((state :required)
-        (allow-other-keys nil)
-        (auxp nil)
-        (required nil)
-        (optional nil)
-        (rest nil)
-        (keys nil)
-        (keyp nil)
-        (aux nil))
-    (labels ((fail (elt)
-               (simple-program-error "Misplaced ~S in types lambda-list:~%  ~S"
-                                     elt lambda-list))
-             (check-variable (elt what &optional (allow-specializers allow-specializers))
-               (unless (and (or (symbolp elt)
-                                (and allow-specializers
-                                     (consp elt) (= 2 (length elt)) (symbolp (first elt))))
-                            (not (constantp elt)))
-                 (simple-program-error "Invalid ~A ~S in ordinary lambda-list:~%  ~S"
-                                       what elt lambda-list)))
-             (check-spec (spec what)
-               (destructuring-bind (init suppliedp) spec
-                 (declare (ignore init))
-                 (check-variable suppliedp what nil)))
-	     (check-type-spec (type what)
-	       ;; TODO: verify type spec validity. symbolp is not enough
-	       #+nil(unless (symbolp type)
-		      (simple-program-error "Invalid ~A type spec ~A in types lambda list:~% ~S"
-					    what
-					    type
-					    lambda-list))))
-      (dolist (elt lambda-list)
-        (case elt
-          (&optional
-           (if (eq state :required)
-               (setf state elt)
-               (fail elt)))
-          (&rest
-           (if (member state '(:required &optional))
-               (setf state elt)
-               (fail elt)))
-          (&key
-           (if (member state '(:required &optional :after-rest))
-               (setf state elt)
-               (fail elt))
-           (setf keyp t))
-          (&allow-other-keys
-           (if (eq state '&key)
-               (setf allow-other-keys t
-                     state elt)
-               (fail elt)))
-          (&aux
-           (cond ((eq state '&rest)
-                  (fail elt))
-                 (auxp
-                  (simple-program-error "Multiple ~S in types lambda-list:~%  ~S"
-                                        elt lambda-list))
-                 (t
-                  (setf auxp t
-                        state elt))))
-          (otherwise
-           (when (member elt '#.(set-difference lambda-list-keywords
-                                                '(&optional &rest &key &allow-other-keys &aux)))
-             (simple-program-error
-              "Bad lambda-list keyword ~S in types lambda-list:~%  ~S"
-              elt lambda-list))
-           (case state
-             (:required
-              (check-type-spec elt "required parameter")
-              (push elt required))
-             (&optional
-	      (check-type-spec elt "optional parameter")
-	      (push elt optional))
-             (&rest
-              (check-type-spec elt "rest parameter")
-              (setf rest elt
-                    state :after-rest))
-             (&key
-	      (if (symbolp elt)
-		  (progn
-		    (check-variable elt "keyword parameter")
-		    (push (cons elt t) keys))
-		  ;; else
-		  (progn
-		    (when (not (and (consp elt)
-				    (equalp (length elt) 2)))
-		      (simple-program-error "Invalid keyword type spec ~A in lambda-list:~% ~S"
-					    elt
-					    lambda-list))
-		    (destructuring-bind (var type) elt
-		      (check-variable var "keyword parameter")
-		      (check-type-spec type "keyword parameter")
-		      (push (cons (car elt) (cadr elt)) keys)))))
-             (&aux
-              (if (consp elt)
-                  (destructuring-bind (var &optional init) elt
-                    (declare (ignore init))
-                    (check-variable var "&aux parameter"))
-                  (progn
-                    (check-variable elt "&aux parameter")
-                    (setf elt (list* elt (when normalize-auxilary
-                                           '(nil))))))
-              (push elt aux))
-             (t
-              (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
-    (values (nreverse required) (nreverse optional) rest (nreverse keys)
-            allow-other-keys (nreverse aux) keyp)))
-
-(defun typed-generic-function-lambda-list-to-normal (typed-lambda-list)
-  (multiple-value-bind (required optional rest
-				 keys allow-other-keys aux)
-      (parse-typed-generic-function-lambda-list typed-lambda-list)
-    (append required
-	    (when optional
-	      (cons '&optional
-		    optional))
-	    (when rest
-	      (cons '&rest (list rest)))
-	    (when keys
-	      (cons '&key
-		    (mapcar #'first
-			    keys)))
-	    (when allow-other-keys
-	      (cons '&allow-other-keys
-		    allow-other-keys))
-	    (when aux
-	      (cons '&aux aux)))))

@@ -1,7 +1,7 @@
 (defpackage :gradual-common-lisp
   (:nicknames :gcl)
   (:import-from :common-lisp :nil)
-  (:shadow :defun :defparameter :defclass :defmethod)
+  (:shadow :defun :defparameter :defclass :defgeneric :defmethod)
   (:use :cl :gradual)
   (:export :nil))
 
@@ -18,6 +18,11 @@
 			    ,direct-superclasses
 			    ,direct-slots
 			    ,@options))
+
+(defmacro defgeneric (name lambda-list &rest options)
+  `(gradual::typed-defgeneric ,name
+			      ,lambda-list
+			      ,@options))
 
 (defmacro defmethod (name &rest args)
   `(gradual::defmethod ,name ,@args))
