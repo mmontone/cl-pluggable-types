@@ -159,10 +159,10 @@
 		  (simple-program-error "Invalid type for generic function ~A" (get-option options :type)))
 		`(closer-mop:ensure-generic-function
 		  ',fun-name
-		  :lambda-list ,lambda-list
+		  :lambda-list ',lambda-list
 		  :type (parse-type ',(get-option options :type))
-		  :generic-function-class typed-standard-generic-function
-		  :method-class typed-standard-method
+		  :generic-function-class 'typed-standard-generic-function
+		  :method-class 'typed-standard-method
 		  ,@generic-function-options)))))))
 
 (defun parse-defmethod (form)
@@ -315,6 +315,5 @@
 					,fbody))
 				     :type ,function-type))
 		     (when *typechecking-enabled*
-		       (typecheck))
+		       (typecheck-everything))
 		     ',name)))))))))
-

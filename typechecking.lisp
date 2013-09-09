@@ -5,7 +5,7 @@
 (defun enable-debugging (&optional (enable-p t))
   (setf *debug* enable-p))
 
-(defun typecheck (&optional (output *standard-output*))
+(defun typecheck-everything (&optional (output *standard-output*))
   (when *debug*
     (format output "Typechecking started.~%"))
   (handler-bind ((gradual-type-error (lambda (type-error)
@@ -20,6 +20,20 @@
 	       (format output "Typechecking ~A...~%" key))
 	     (%typecheck-form value env))))
     (when *debug* (format output "Done.~%"))))
+
+(defgeneric typecheck (thing &rest args)
+  (:method ((form walked-form) &rest args)
+    (apply #'typecheck-form form
+	   args))
+  (:method ((method typed-standard-method) &rest args)
+    (declare (ignore args))
+    (typecheck-typed-method method))
+  (:method ((gf typed-standard-generic-function) &rest args)
+    (declare (ignore args))
+    (typecheck-typed-generic-function gf))
+  (:method (thing &rest args)
+    (declare (ignore args))
+    (error "~A can not be type checked" thing)))
 
 (defun typecheck-form (form &optional (typing-environment (make-typing-environment)))
   (let ((walked-form (walk-form form)))
@@ -305,3 +319,9 @@
 (defmethod %typecheck-form ((form lambda-function-form) typing-environment)
   ;; TODO: the following is wrong, until we have typed lambdas
   (fun (&rest t) t))
+
+(defun typecheck-typed-generic-function (gf)
+  )
+
+(defun typecheck-typed-method (method)
+  )

@@ -5,6 +5,7 @@
 	   :return-type
 	   :defun-type
 	   :typecheck
+	   :typecheck-everything
 	   :infer-type
 	   :fun
 	   :gradual-type-error

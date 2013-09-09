@@ -195,5 +195,5 @@
 			      declarations :key #'caadr)
 		 ,fbody)
 	       (when *typechecking-enabled*
-		 (typecheck))
+		 (typecheck-everything))
 	       ',name)))))))
