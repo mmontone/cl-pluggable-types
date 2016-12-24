@@ -42,8 +42,8 @@
 
 (infer-type
  (gradual::walk-form '(lambda (x)
-	      (declare (var-type x integer))
-	      x)))
+                       (declare (var-type x integer))
+                       x)))
 
 (infer-type
  (gradual::walk-form
@@ -64,152 +64,152 @@
 (def-test typed-lambda-list ()
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '(a)))
+        (gradual::parse-typed-lambda-list '(a)))
        (list '((A T))
-	     NIL
-	     NIL
-	     NIL
-	     NIL
-	     NIL
-	     NIL)))
+             NIL
+             NIL
+             NIL
+             NIL
+             NIL
+             NIL)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a integer))))
+        (gradual::parse-typed-lambda-list '((a integer))))
        (list '((A INTEGER))
-	     NIL
-	     NIL
-	     NIL
-	     NIL
-	     NIL
-	     NIL)))
-  
+             NIL
+             NIL
+             NIL
+             NIL
+             NIL
+             NIL)))
+
   ;; Optionals
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer))))
+        (gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer))))
        (list
-	'((A STRING))
-	'((X 33 INTEGER))
-	NIL
-	NIL
-	NIL
-	NIL
-	NIL)))
+        '((A STRING))
+        '((X 33 INTEGER))
+        NIL
+        NIL
+        NIL
+        NIL
+        NIL)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer x-supplied-p))))
+        (gradual::parse-typed-lambda-list '((a string) &optional (x 33 integer x-supplied-p))))
        (list
-	'((A STRING))
-	'((X 33 INTEGER X-SUPPLIED-P))
-	NIL
-	NIL
-	NIL
-	NIL
-	NIL)))
+        '((A STRING))
+        '((X 33 INTEGER X-SUPPLIED-P))
+        NIL
+        NIL
+        NIL
+        NIL
+        NIL)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &optional x)))
+        (gradual::parse-typed-lambda-list '((a string) &optional x)))
        (list
-	'((A STRING))
-	'((X NIL T))
-	NIL
-	NIL
-	NIL
-	NIL
-	NIL)))
+        '((A STRING))
+        '((X NIL T))
+        NIL
+        NIL
+        NIL
+        NIL
+        NIL)))
 
   ;; Keyword
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer))))
+        (gradual::parse-typed-lambda-list '((a string) &key (x 33 integer))))
        (list
-	'((A STRING))
-	NIL
-	NIL
-	'(((:X X) 33 INTEGER))
-	NIL
-	NIL
-	T)))
+        '((A STRING))
+        NIL
+        NIL
+        '(((:X X) 33 INTEGER))
+        NIL
+        NIL
+        T)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &key (x 33 integer x-supplied-p))))
+        (gradual::parse-typed-lambda-list '((a string) &key (x 33 integer x-supplied-p))))
        (list
-	'((A STRING))
-	NIL
-	NIL
-	'(((:X X) 33 INTEGER X-SUPPLIED-P))
-	NIL
-	NIL
-	T)))
+        '((A STRING))
+        NIL
+        NIL
+        '(((:X X) 33 INTEGER X-SUPPLIED-P))
+        NIL
+        NIL
+        T)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &key x)))
+        (gradual::parse-typed-lambda-list '((a string) &key x)))
        (list
-	'((A STRING))
-	NIL
-	NIL
-	'(((:X X) NIL T))
-	NIL
-	NIL
-	T)))
+        '((A STRING))
+        NIL
+        NIL
+        '(((:X X) NIL T))
+        NIL
+        NIL
+        T)))
   (is (object=
        (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &key ((:x var) 22 integer))))
+        (gradual::parse-typed-lambda-list '((a string) &key ((:x var) 22 integer))))
        (list
-	'((A STRING))
-	NIL
-	NIL
-	'(((:X VAR) 22 INTEGER))
-	NIL
-	NIL
-	T)))
+        '((A STRING))
+        NIL
+        NIL
+        '(((:X VAR) 22 INTEGER))
+        NIL
+        NIL
+        T)))
 
   ;; Rest
   #+nil(is (object=
-       (multiple-value-list
-	(gradual::parse-typed-lambda-list '((a string) &rest (nums integer))))
-       (list
-	'((A STRING))
-	NIL
-	NIL
-	'(((:X VAR) 22 INTEGER))
-	NIL
-	NIL
-	T)))
-  
+            (multiple-value-list
+             (gradual::parse-typed-lambda-list '((a string) &rest (nums integer))))
+            (list
+             '((A STRING))
+             NIL
+             NIL
+             '(((:X VAR) 22 INTEGER))
+             NIL
+             NIL
+             T)))
+
   )
 
 (def-test types-lambda-list ()
   (is (object=
-       (multiple-value-list 
-	(gradual::parse-types-lambda-list '(integer integer)))
+       (multiple-value-list
+        (gradual::parse-types-lambda-list '(integer integer)))
        '((INTEGER INTEGER)
-	 NIL
-	 NIL
-	 NIL
-	 NIL
-	 NIL
-	 NIL)))
+         NIL
+         NIL
+         NIL
+         NIL
+         NIL
+         NIL)))
   (is (object=
-       (multiple-value-list 
-	(gradual::parse-types-lambda-list '(integer &optional integer)))
+       (multiple-value-list
+        (gradual::parse-types-lambda-list '(integer &optional integer)))
        '((INTEGER)
-	 (INTEGER)
-	 NIL
-	 NIL
-	 NIL
-	 NIL
-	 NIL)))
+         (INTEGER)
+         NIL
+         NIL
+         NIL
+         NIL
+         NIL)))
   (is (object=
-       (multiple-value-list 
-	(gradual::parse-types-lambda-list '(integer &key (x integer))))
+       (multiple-value-list
+        (gradual::parse-types-lambda-list '(integer &key (x integer))))
        '((INTEGER)
-	 NIL
-	 NIL
-	 ((X . INTEGER))
-	 NIL
-	 NIL
-	 T)))
+         NIL
+         NIL
+         ((X . INTEGER))
+         NIL
+         NIL
+         T)))
   (signals error
     (gradual::parse-types-lambda-list '(integer &optional (x integer))))
   (signals error
@@ -240,22 +240,22 @@
     (declare (return-type integer))
     22)
   (is (object= (fun-type 'hello)
-	      (fun (string &key (y boolean)) integer))))
+               (fun (string &key (y boolean)) integer))))
 
 ;; typechecking tests
 
 (def-test free-application-typechecking ()
   (macrolet ((is-typed (form type)
-	       `(is (object=
-		     (gradual::%typecheck-form
-		      (gradual::walk-form ',form)
-		      (gradual::make-typing-environment))
-		     ',type)))
-	     (signals-type-error (form)
-	       `(signals gradual-type-error
-		  (gradual::%typecheck-form
-		   (gradual::walk-form ',form)
-		   (gradual::make-typing-environment)))))
+               `(is (object=
+                     (gradual::%typecheck-form
+                      (gradual::walk-form ',form)
+                      (gradual::make-typing-environment))
+                     ',type)))
+             (signals-type-error (form)
+               `(signals gradual-type-error
+                  (gradual::%typecheck-form
+                   (gradual::walk-form ',form)
+                   (gradual::make-typing-environment)))))
     ;; required args types
     (gradual::typed-defun f1 ((x string))
       (declare (return-type string))
@@ -274,12 +274,12 @@
 
     ;; keyword args types
     (gradual::typed-defun f3 ((x integer) &key (y nil string)
-			      (z t boolean))
+                              (z t boolean))
       (declare (return-type boolean))
       (and (> x 3)
-	   (or (null y)
-	       (> (length y) 3))
-	   z))
+           (or (null y)
+               (> (length y) 3))
+           z))
     (is-typed (f3 22) boolean)
     (is-typed (f3 22 :y "hello") boolean)
     (is-typed (f3 22 :z t :y "bye") boolean)
@@ -304,41 +304,41 @@
   ;; This signals an error because the casting from sequence to string is not being done
   (signals gradual-type-error
     (gradual::%typecheck-form (gradual::fun-source 'f5)
-			      (gradual::make-typing-environment)))
+                              (gradual::make-typing-environment)))
 
   (gradual::typed-defun f6 ((x string) (y string))
     (declare (return-type string))
     ((string) concatenate 'string x y))
   (is (object= (gradual::%typecheck-form (gradual::fun-source 'f6)
-					(gradual::make-typing-environment))
-	      (fun (string string) string))))
+                                         (gradual::make-typing-environment))
+               (fun (string string) string))))
 
 (def-test parse-type-test ()
   (let ((type (gradual::parse-type '<a>)))
     (is (and (typep type 'gradual::type-var)
-	     (object= (gradual::name type)
-		     'a))))
+             (object= (gradual::name type)
+                      'a))))
   (is (object= (gradual::parse-type 'string) 'string))
   (gradual::parse-type '(function ((function (<a>) <b>) (list <a>)) (list <b>))))
-		     
+
 (def-test extract-type-declarations-test ()
   (is (equalp
        (gradual::extract-type-declarations '((declare (ignore x))
-					     (declare (var-type x integer))
-					     (declare (fun-type f (integer -> integer)))
-					     (declare (return-type integer))))
+                                             (declare (var-type x integer))
+                                             (declare (fun-type f (integer -> integer)))
+                                             (declare (return-type integer))))
        '(((DECLARE (FUN-TYPE F (INTEGER -> INTEGER))))
-	 ((DECLARE (VAR-TYPE X INTEGER)))
-	 (DECLARE (RETURN-TYPE INTEGER))
-	 ((DECLARE (IGNORE X)))))))
+         ((DECLARE (VAR-TYPE X INTEGER)))
+         (DECLARE (RETURN-TYPE INTEGER))
+         ((DECLARE (IGNORE X)))))))
 
 (def-test typed-defgeneric-test ()
   (let ((gf (gradual::typed-defgeneric fullname (person)
-			     (:typed t)
-			     (:return-type string))))
+                                       (:typed t)
+                                       (:return-type string))))
     (is (object= (gradual::generic-function-type gf)
-		 (fun (person) string))))
+                 (fun (person) string))))
   (let ((gf (gradual::typed-defgeneric surname (person)
-				       (:type (function (person) string)))))
+                                       (:type (function (person) string)))))
     (is (object= (gradual::generic-function-type gf)
-		 (fun (person) string)))))
+                 (fun (person) string)))))
