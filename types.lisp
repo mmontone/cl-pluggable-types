@@ -1,5 +1,47 @@
 (in-package :gradual)
 
+(defclass gradual-type ()
+  ())
+
+(defclass union-type (gradual-type)
+  ((types :initarg :types
+          :accessor types
+          :initform (error "Provide the types")
+          :type list)))
+
+(defmethod print-object ((union-type union-type) stream)
+  (format stream "(OR ~{~A~^ ~})" (types union-type)))
+
+(defclass intersection-type (gradual-type)
+  ((types :initarg :types
+          :accessor types
+          :initform (error "Provide the types")
+          :type list)))
+
+(defclass type-var (gradual-type)
+  ((name :initarg :name
+         :accessor name
+         :type symbol
+         :initform (error "Provide the type-var name"))))
+
+(defclass values-type (gradual-type args-type)
+  ((args :initarg :args :accessor args :initform nil)))
+
+(defclass function-type (gradual-type args-type)
+  ((return-type :initarg :return-type
+                :initform (error "Provide the return type")
+                :accessor return-type)))
+
+(defclass member-type (gradual-type)
+  ((types :initarg :types
+          :accessor types
+          :initform (error "Provide the types")
+          :type list)))
+
+(defmethod print-object ((type intersection-type) stream)
+  (format stream "(AND ~{~A~^ ~})" (types type)))
+
+
 (defun equidimensional (a)
   (or (< (array-rank a) 2)
       (apply #'= (array-dimensions a))))
@@ -31,9 +73,6 @@
 (deftype alist ()
   `(and cons
         (satisfies alistp)))
-
-(defclass gradual-type ()
-  ())
 
 ;; Objects equality. See mw-equiv docs
 
@@ -100,11 +139,6 @@
           (or (aand (rest-arg-type struct)
                     (format nil " &rest ~A" it))
               "")))
-
-(defclass function-type (gradual-type args-type)
-  ((return-type :initarg :return-type
-                :initform (error "Provide the return type")
-                :accessor return-type)))
 
 (defmethod mw-equiv:object-constituents ((type (eql 'function-type)))
   (list #'required-args-types
@@ -174,46 +208,13 @@
 
 ;; Types parsing
 
-(defclass type-var (gradual-type)
-  ((name :initarg :name
-         :accessor name
-         :type symbol
-         :initform (error "Provide the type-var name"))))
-
 (defmethod print-object ((type-var type-var) stream)
   (format stream "<~A>" (name type-var)))
-
-(defclass union-type (gradual-type)
-  ((types :initarg :types
-          :accessor types
-          :initform (error "Provide the types")
-          :type list)))
-
-(defmethod print-object ((union-type union-type) stream)
-  (format stream "(OR ~{~A~^ ~})" (types union-type)))
-
-(defclass intersection-type (gradual-type)
-  ((types :initarg :types
-          :accessor types
-          :initform (error "Provide the types")
-          :type list)))
-
-(defmethod print-object ((type intersection-type) stream)
-  (format stream "(AND ~{~A~^ ~})" (types type)))
-
-(defclass values-type (gradual-type args-type)
-  ((args :initarg :args :accessor args :initform nil)))
 
 (defmethod print-object ((type values-type) stream)
   (format stream "(VALUES ")
   (print-args-type type stream)
   (format stream ")"))
-
-(defclass member-type (gradual-type)
-  ((types :initarg :types
-          :accessor types
-          :initform (error "Provide the types")
-          :type list)))
 
 (defmethod print-object ((type member-type) stream)
   (format stream "(MEMBER ~{~A~^ ~})" (types type)))
