@@ -83,7 +83,7 @@
 ;;;
 (defun augment-lexenv-with-variable (name lexenv &key special ignored)
   (let ((var (if special
-                 (sb-c::make-global-var :%source-name name)
+                 (sb-c::make-global-var :%source-name name :kind :special)
                  (sb-c::make-lambda-var :%source-name name))))
     (when ignored
       (setf (sb-c::lambda-var-ignorep var) t))

@@ -62,7 +62,7 @@
   `(and cons
         (satisfies plistp)))
 
-                                        ;(subtypep 'plist 'cons)
+;;(subtypep 'plist 'cons)
 
 (defun alistp (list)
   (and (listp list)
@@ -171,6 +171,14 @@
                 )
              ,(return-type function-type)))
 
+(defgeneric types-consistentp (t1 t2)
+  (:documentation "Gradual typing type consistency relation"))
+
+(defmethod types-consistentp (t1 t2)
+  )
+
+(defgeneric gradual-subtypep (t1 t2))
+
 (defmethod gradual-subtypep (t1 t2)
   (if (object= t2 t)
       t
@@ -186,11 +194,11 @@
       (gradual-subtypep (second t1) t2)
       (call-next-method)))
 
-(defmethod gradual-subtypep ((t1 function-type) t2)
-  (gradual-subtypep (function-type-spec t1) t2))
+;; (defmethod gradual-subtypep ((t1 function-type) t2)
+;;   (gradual-subtypep (function-type-spec t1) t2))
 
-(defmethod gradual-subtypep (t1 (t2 function-type))
-  (gradual-subtypep t1 (function-type-spec t2)))
+;; (defmethod gradual-subtypep (t1 (t2 function-type))
+;;   (gradual-subtypep t1 (function-type-spec t2)))
 
 (defmethod gradual-subtypep (t1 (t2 union-type))
   (some (lambda (type)

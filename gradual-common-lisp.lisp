@@ -27,6 +27,17 @@
 (defmacro defmethod (name &rest args)
   `(gradual::defmethod ,name ,@args))
 
+;; Util
+
+;; (typed-defun plist (&rest args)
+;;   (declare (return-type plist))
+;;   args)
+
+;; (typed-defun alist (&rest args)
+;;   (declare (return-type alist))
+;;   args)
+
+
 ;; Export all common-lisp package symbols
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
