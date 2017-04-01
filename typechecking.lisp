@@ -5,9 +5,12 @@
 (defun enable-debugging (&optional (enable-p t))
   (setf *debug* enable-p))
 
-(defun typecheck-everything (&optional (output *standard-output*))
+(defun debug-format (&rest args)
   (when *debug*
-    (format output "Typechecking started.~%"))
+    (apply #'format args)))
+
+(defun typecheck-everything (&optional (output *standard-output*))
+  (debug-format output "Typechecking started.~%")
   (handler-bind ((gradual-type-error (lambda (type-error)
                                        (format output "TYPE ERROR: ~A ~@{in ~A~}~%" type-error (source type-error))
                                        (continue))))
@@ -16,10 +19,10 @@
          using (hash-value value)
          do
            (progn
-             (when *debug*
-               (format output "Typechecking ~A...~%" key))
-             (%typecheck-form value env))))
-    (when *debug* (format output "Done.~%"))))
+             (debug-format output "Typechecking ~A..." key)
+             (%typecheck-form value env)
+             (debug-format output "OK~%"))))
+    (debug-format output "Done.~%")))
 
 (defgeneric typecheck (thing &rest args)
   (:method ((form walked-form) &rest args)
