@@ -298,7 +298,9 @@
 		     (let ((method (make-instance 'typed-standard-method
 						  :qualifiers ',qualifiers
 						  :lambda-list ',(typed-lambda-list-to-normal lambda-list)
-						  :specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
+						  ;; FIXME: sb-pcl::specializer-from-type not available anymore
+						  ;;:specializers ',(mapcar #'sb-pcl::specializer-from-type required-args-types)
+						  :specializers nil
 						  :function (compile nil method-lambda)	     
 						  :walked-source
 						  (walk-form
