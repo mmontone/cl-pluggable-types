@@ -21,8 +21,8 @@
 
 ;; (var-type '*count2*)
 
-;; (check-gradual-type *count* 'integer)
-;; (check-gradual-type *count* 'number)
+;; (gradual::check-gradual-type *count* 'integer)
+;; (gradual::check-gradual-type *count* 'number)
 
 ;; (gradual::$setq *count* 22)
 ;; (gradual::$setq *count* t)
