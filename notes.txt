@@ -1,0 +1,4 @@
+A possible plan:
+- Use standard Lisp declarations. (declaim (ftype ...)) etc.
+- Implement a portable library for obtaining the types of functions (compiler-info library).
+- Read definitions from file using READ function. Use a code-walker to parse and typecheck those definitions.
