@@ -19,6 +19,14 @@
 (defun variable-type (varname)
   (sb-introspect:variable-type varname))
 
+#+sbcl
+(defun function-info (fname)
+  (sb-cltl2:function-information fname))
+
+#+sbcl
+(defun variable-info (varname)
+  (sb-cltl2:variable-information varname))
+
 #+ccl
 (defun variable-info (varname)
   (ccl::variable-information varname))
