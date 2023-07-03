@@ -1,15 +1,15 @@
 (in-package :gradual)
 
-(defun infer-type (form type-system &rest args)
+(defgeneric infer-type (form type-system &rest args))
+
+(defmethod infer-type (form (type-system (eql 'gradual-type-system)) &rest args)
   "Infer the type of FORM under a fresh TYPING-ENVIRONMENT."
-  (let ((type-system (if (symbolp type-system)
-                         (apply #'make-instance type-system args)
-                         type-system)))
+  (let ((type-system (apply #'make-instance type-system args)))
     (type-system-infer-type
      type-system
      (if (typep form 'cl-walker:walked-form)
-       form
-       (cl-walker:walk-form form))
+         form
+         (cl-walker:walk-form form))
      (make-typing-environment type-system))))
 
 (defgeneric type-system-infer-type (type-system form typing-environment)
