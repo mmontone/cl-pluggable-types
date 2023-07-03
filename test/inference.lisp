@@ -15,3 +15,9 @@
   (is (subtypep
        (gradual:infer-type '(let ((x 2)) x))
        'number)))
+
+(def-test make-instance-inference-test ()
+  (is (eql (gradual:infer-type '(make-instance 'foo))
+           'foo))
+  (is (eql (gradual:infer-type '(apply #'make-instance 'foo))
+           'foo)))

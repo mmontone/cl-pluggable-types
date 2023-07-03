@@ -52,7 +52,7 @@
 
 (defmethod %typecheck-form ((form let-form) typing-environment)
   (let ((bindings (bindings-of form))
-        (let-env typing-environment))
+        (let-env (copy-typing-environment typing-environment)))
     (loop for binding in bindings
        do (let ((value (value-of binding))
                 (type (or (cl-walker::type-spec binding)
@@ -65,16 +65,14 @@
                                       (name-of binding)
                                       type
                                       value-type))
-              (setf let-env (set-env-var-type let-env
-                                              (name-of binding)
-                                              (or (cl-walker::type-spec binding)
-                                                  value-type)
-                                              )))))
+              (setf (type-of-var (name-of binding) let-env)
+                    (or (cl-walker::type-spec binding)
+                        value-type)))))
     (%typecheck-form (body-of form) let-env)))
 
 (defmethod %typecheck-form ((form let*-form) typing-environment)
   (let ((bindings (bindings-of form))
-        (let*-env typing-environment))
+        (let*-env (copy-typing-environment typing-environment)))
     (loop for binding in bindings
        do (let ((value (value-of binding))
                 (type (or (cl-walker::type-spec binding)
@@ -87,11 +85,9 @@
                                       (name-of binding)
                                       type
                                       value-type))
-              (setf let*-env (set-env-var-type let*-env
-                                               (name-of binding)
-                                               (or (cl-walker::type-spec binding)
-                                                   value-type)
-                                               )))))
+              (setf (type-of-var (name-of binding) let*-env)
+                    (or (cl-walker::type-spec binding)
+                        value-type)))))
     (%typecheck-form (body-of form) let*-env)))
 
 (defun check-return-type (form value-type type)
@@ -106,10 +102,9 @@
                           type
                           value-type))))
 
-
 (defmethod %typecheck-form ((form function-definition-form) typing-environment)
   (let* ((declarations (declares-of form))
-         (fun-env typing-environment)
+         (fun-env (copy-typing-environment typing-environment))
          (args-declarations
           (remove-if-not
            (lambda (declaration)
@@ -122,7 +117,7 @@
                               (aand (find (name-of arg) args-declarations :key #'name-of :test #'equalp)
                                     (cl-walker::type-of it))
                               t)))
-            (setf fun-env (set-env-var-type fun-env (name-of arg) arg-type))))
+            (setf (type-of-var (name-of arg) fun-env) arg-type)))
     (let ((body-type
            (or
             (aand (body-of form)
@@ -202,7 +197,7 @@
               (return-type operator-type)))))))
 
 (defmethod %typecheck-form ((form lexical-variable-reference-form) typing-environment)
-  (or (env-var-type typing-environment (name-of form))
+  (or (type-of-var (name-of form) typing-environment)
       t))
 
 (defmethod %typecheck-form ((form constant-form) typing-environment)
@@ -228,7 +223,7 @@
 
 (defmethod %typecheck-form ((form flet-form) typing-environment)
   (let ((bindings (bindings-of form))
-        (flet-env typing-environment))
+        (flet-env (copy-typing-environment typing-environment)))
     (loop for binding in bindings
        do
          (let* ((declarations (declares-of form))
@@ -290,9 +285,8 @@
                  (check-return-type form body-type return-type)
 
                  ;; Put the type of the local function in the typing environment
-                 (setf flet-env (set-env-fun-type flet-env
-                                                  (name-of binding)
-                                                  function-type)))))))
+                 (setf (type-of-function (name-of binding) flet-env)
+                       function-type))))))
 
     ;; Typecheck the function body in the new functions environment
     (%typecheck-form (body-of form) flet-env)))
@@ -302,7 +296,7 @@
 
 (defmethod %typecheck-form ((form setq-form) typing-environment)
   (let ((value-type (%typecheck-form (value-of form) typing-environment))
-        (var-type (or (env-var-type typing-environment (variable-of form))
+        (var-type (or (type-of-var (variable-of form) typing-environment)
                       t)))
     (when (not (or (equalp value-type t)
                    (equalp var-type t)
@@ -314,7 +308,7 @@
                           var-type))))
 
 (defmethod %typecheck-form ((form walked-lexical-function-object-form) typing-environment)
-  (env-fun-type typing-environment (name-of form)))
+  (type-of-function (name-of form) typing-environment ))
 
 (defmethod %typecheck-form ((form special-variable-reference-form) typing-environment)
   (var-type (name-of form)))

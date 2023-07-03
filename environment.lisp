@@ -1,18 +1,23 @@
 (in-package :gradual)
 
-(defstruct (typing-environment
-             (:print-function
-              (lambda (struct stream depth)
-                (declare (ignore depth))
-                (format stream "#S<TYPING-ENVIRONMENT VARS: ~A FUNS: ~A>"
-                        (typing-environment-var-types struct)
-                        (typing-environment-fun-types struct))))
-             (:copier nil))
-  var-types
-  fun-types)
+(defclass typing-environment ()
+  ())
+
+(defclass gradual-typing-environment (typing-environment)
+  ((var-types :accessor typing-environment-var-types
+              :initform nil)
+   (fun-types :accessor typing-environment-fun-types
+              :initform nil)))
 
 (declaim (ftype (function (typing-environment) typing-environment) copy-typing-environment))
-(defun copy-typing-environment (env)
+
+(defgeneric copy-typing-environment (env))
+(defgeneric type-of-function (fname env))
+(defgeneric (setf type-of-function) (value fname env))
+(defgeneric type-of-var (varname env))
+(defgeneric (setf type-of-var) (value varname env))
+
+(defmethod copy-typing-environment ((env gradual-typing-environment))
   (let ((env-copy (make-typing-environment)))
     (setf (typing-environment-var-types env-copy)
           (copy-tree (typing-environment-var-types env)))
@@ -20,25 +25,26 @@
           (copy-tree (typing-environment-fun-types env)))
     env-copy))
 
-(defun env-fun-type (env fun-name)
-  (cdr (assoc fun-name (typing-environment-fun-types env))))
+(defmethod type-of-function (fname (env gradual-typing-environment))
+  (or (cdr (assoc fname (typing-environment-fun-types env)))
+      'function))
 
-(defun set-env-fun-type (env fun-name type)
-  (let ((new-env (copy-typing-environment env)))
-    (let ((old-type (env-fun-type new-env fun-name)))
-      (when old-type
-        (warn "~A already has type ~A in env ~A" fun-name old-type new-env))
-      (push (cons fun-name type) (typing-environment-fun-types new-env))
-      new-env)))
+(defmethod (setf type-of-function) (type fname (env gradual-typing-environment))
+  (let ((old-type (type-of-function fname env)))
+    (when old-type
+      (warn "~A already has type ~A in env ~A" fname old-type env))
+    (push (cons fname type)
+          (typing-environment-fun-types env))
+    env))
 
-(defun env-var-type (env var-name)
+(defmethod type-of-var (varname (env gradual-typing-environment))
   (cdr
-   (assoc var-name (typing-environment-var-types env))))
+   (assoc varname (typing-environment-var-types env))))
 
-(defun set-env-var-type (env var-name type)
-  (let ((new-env (copy-typing-environment env)))
-    (let ((old-type (env-fun-type new-env var-name)))
-      (when old-type
-        (warn "~A already has type ~A in env ~A" var-name old-type new-env))
-      (push (cons var-name type) (typing-environment-var-types new-env))
-      new-env)))
+(defmethod (setf type-of-var) (type varname (env gradual-typing-environment))
+  (let ((old-type (type-of-var varname env)))
+    (when old-type
+      (warn "~A already has type ~A in env ~A" varname old-type env))
+    (push (cons varname type)
+          (typing-environment-var-types env))
+    env))

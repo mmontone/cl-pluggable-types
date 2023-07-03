@@ -54,15 +54,14 @@
     (loop for binding in (bindings-of form)
           do
              (setf fresh-typing-environment
-                   (set-env-var-type fresh-typing-environment
-                                     (name-of binding)
-                                     (if (not (cl-walker::type-spec binding))
-                                         (%infer-type (value-of binding) typing-environment)
-                                         (cl-walker::type-spec binding)))))
+                   (setf (type-of-var fresh-typing-environment (name-of binding))
+                         (if (not (cl-walker::type-spec binding))
+                             (%infer-type (value-of binding) typing-environment)
+                             (cl-walker::type-spec binding)))))
     (%infer-type (car (last (body-of form))) fresh-typing-environment)))
 
 (defmethod %infer-type ((form walked-lexical-variable-reference-form) typing-environment)
-  (env-var-type typing-environment (name-of form)))
+  (type-of-var (name-of form) typing-environment))
 
 (defmethod %infer-type ((form the-form) typing-environment)
   (let* ((the-value (value-of form))
@@ -104,7 +103,7 @@
                                         ; else
                             (let ((fresh-typing-environment (copy-typing-environment typing-environment)))
                               (loop for (arg . type) in  arg-types
-                                    do (setf fresh-typing-environment (set-env-var-type fresh-typing-environment arg type)))
+                                    do (setf (type-of-var arg fresh-typing-environment) type))
                               (%infer-type (car (last (body-of form)))
                                            fresh-typing-environment))))))
     (make-function-type :required-args-types (mapcar #'cdr arg-types)
