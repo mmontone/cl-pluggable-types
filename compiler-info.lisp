@@ -17,7 +17,7 @@
 
 #+sbcl
 (defun variable-type (varname)
-  (sb-introspect:variable-type varname))
+  (cdr (assoc 'type (third (multiple-value-list (sb-cltl2:variable-information varname))))))
 
 #+sbcl
 (defun function-info (fname)
