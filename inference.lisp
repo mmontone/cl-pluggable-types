@@ -40,7 +40,13 @@
   (env-var-type typing-environment (name-of form)))
 
 (defmethod %infer-type ((form the-form) typing-environment)
-  (cl-walker::type-of form))
+  (let* ((the-value (value-of form))
+         (the-value-type (%infer-type the-value typing-environment))
+         (declared-type (cl-walker::type-of form)))
+    (unless (or (subtypep declared-type the-value-type)
+                (subtypep the-value-type declared-type))
+      (cerror "Continue" "Types not compatible: ~a and ~a when typechecking: ~a" the-value-type declared-type form))
+    declared-type))
 
 (defmethod %infer-type ((form lambda-function-form) typing-environment)
   (let* ((args-type-declarations (remove-if-not (lambda (declare)
