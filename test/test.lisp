@@ -4,8 +4,10 @@
 
 (in-package :gradual.test)
 
+(fiveam:in-suite* :gradual-tests)
+
 (defun run-tests ()
-  (5am:run 'gradual.test::gradual-tests))
+  (5am:run :gradual-tests))
 
 ;; (gradual::typed-defparameter *count* 1 "Count" integer)
 

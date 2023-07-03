@@ -21,7 +21,7 @@
 
 (defmethod %infer-type ((form free-application-form) typing-environment)
   (cond
-    ;; test for: (make-instance 'foo) 
+    ;; test for: (make-instance 'foo)
     ((and (eql (operator-of form) 'make-instance)
           (typep (first (arguments-of form)) 'cl-walker:constant-form))
      (value-of (first (arguments-of form))))
