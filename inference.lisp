@@ -31,6 +31,24 @@
            (args-types (mapcar #'infer-type (arguments-of form))))
        (return-type function-type)))))
 
+(defun canonize-type (type)
+  (cond
+    ((and (listp type)
+          (eql (first type) 'or))
+     ;; TODO: do better
+     (let ((rest-types (remove-duplicates (rest type))))
+       (if (= (length rest-types) 1)
+           (first rest-types)
+           `(or ,@rest-types))))
+    (t
+     type)))
+
+(defmethod %infer-type ((form if-form) typing-env)
+  (canonize-type
+   `(or
+     ,(%infer-type (then-of form) typing-env)
+     ,(%infer-type (else-of form) typing-env))))
+
 (defmethod %infer-type ((form let-form) typing-environment)
   (let ((fresh-typing-environment typing-environment))
     (loop for binding in (bindings-of form)
