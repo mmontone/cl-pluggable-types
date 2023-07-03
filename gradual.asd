@@ -44,6 +44,7 @@ OTHER DEALINGS IN THE SOFTWARE."
   :components
   ((:file "package")
    (:file "util")
+   (:file "type-system")
    (:file "gradual")
    (:file "conditions")
    (:file "types")
