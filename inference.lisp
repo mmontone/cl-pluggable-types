@@ -20,9 +20,16 @@
   (type-of (value-of form)))
 
 (defmethod %infer-type ((form free-application-form) typing-environment)
-  (let ((function-type (fun-type (operator-of form)))
-        (args-types (mapcar #'infer-type (arguments-of form))))
-    (return-type function-type)))
+  (cond
+    ;; test for: (make-instance 'foo) 
+    ((and (eql (operator-of form) 'make-instance)
+          (typep (first (arguments-of form)) 'cl-walker:constant-form))
+     (value-of (first (arguments-of form))))
+    ;; otherwise, use function type information
+    (t
+     (let ((function-type (fun-type (operator-of form)))
+           (args-types (mapcar #'infer-type (arguments-of form))))
+       (return-type function-type)))))
 
 (defmethod %infer-type ((form let-form) typing-environment)
   (let ((fresh-typing-environment typing-environment))
