@@ -14,14 +14,6 @@
      env
      type-system)))
 
-(defgeneric type-system-infer-type (type-system form typing-environment)
-  (:documentation "Infer the type of FORM under TYPING-ENVIRONMENT."))
-
-(defmethod type-system-infer-type :around (type-system form env)
-  (let ((type (call-next-method)))
-    (setf (inferred-type form env) type)
-    type))
-
 (defmethod type-system-infer-type ((type-system gradual-type-system)
                                    (form free-variable-reference-form) typing-env)
   (var-type (name-of form)))
