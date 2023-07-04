@@ -107,6 +107,7 @@
     (unless (or (subtypep declared-type the-value-type)
                 (subtypep the-value-type declared-type))
       (cerror "Continue" "Types not compatible: ~a and ~a when typechecking: ~a" the-value-type declared-type form))
+    (setf (declared-type form typing-environment) declared-type)
     declared-type))
 
 (defmethod type-system-infer-type ((type-system gradual-type-system)
