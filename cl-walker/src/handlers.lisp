@@ -106,9 +106,11 @@
              (format stream "Unable to return from block named ~S." (block-name condition)))))
 
 (defun walk-return (block-name value form parent env)
-  (if (lookup-in-walkenv :block block-name env)
+  (alexandria:if-let
+      ((block-form (or (lookup-in-walkenv :block block-name env)
+                       (lookup-in-walkenv :function block-name env))))
       (with-form-object (return-from 'return-from-form parent
-                                     :target-block (lookup-in-walkenv :block block-name env))
+                                     :target-block block-form)
         (setf (result-of return-from) (walk-form value return-from env)))
       (restart-case
           (error 'return-from-unknown-block :block-name block-name)
