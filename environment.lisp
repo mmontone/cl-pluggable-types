@@ -1,7 +1,27 @@
 (in-package :gradual)
 
 (defclass typing-environment ()
-  ())
+  ((declared-types :type hash-table
+                   :documentation "A mapping of WALKED-FORM to their declared types."
+                   :initform (make-hash-table)
+                   :accessor declared-types)
+   (inferred-types :type hash-table
+                   :documentation "A mapping of WALKED-FORM to their inferred types."
+                   :initform (make-hash-table)
+                   :accessor inferred-types))
+  (:documentation "A typing environment."))
+
+(defmethod declared-type (walked-form (env typing-environment))
+  (gethash walked-form (declared-types env)))
+
+(defmethod (setf declared-type) (type walked-form (env typing-environment))
+  (setf (gethash walked-form (declared-types env)) type))
+
+(defmethod inferred-type (walked-form (env typing-environment))
+  (gethash walked-form (inferred-types env)))
+
+(defmethod (setf inferred-type) (type walked-form (env typing-environment))
+  (setf (gethash walked-form (inferred-types env)) type))
 
 (defclass gradual-typing-environment (typing-environment)
   ((var-types :accessor typing-environment-var-types
