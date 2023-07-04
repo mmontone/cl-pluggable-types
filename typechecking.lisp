@@ -9,18 +9,20 @@
   (when *debug*
     (apply #'format args)))
 
-(defun typecheck-everything (&optional (output *standard-output*))
+(defgeneric typecheck-everything (type-system &optional output))
+
+(defmethod typecheck-everything ((type-system gradual-type-system) &optional (output *standard-output*))
   (debug-format output "Typechecking started.~%")
   (handler-bind ((gradual-type-error (lambda (type-error)
                                        (format output "TYPE ERROR: ~A ~@{in ~A~}~%" type-error (source type-error))
                                        (continue))))
-    (let ((env (make-typing-environment)))
+    (let ((env (make-typing-environment type-system)))
       (loop for key being the hash-keys of *fun-sources*
          using (hash-value value)
          do
            (progn
              (debug-format output "Typechecking ~A..." key)
-             (%typecheck-form value env)
+             (type-system-typecheck-form value env)
              (debug-format output "OK~%"))))
     (debug-format output "Done.~%")))
 

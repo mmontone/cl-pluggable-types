@@ -40,7 +40,9 @@
            (args-types (mapcar (lambda (arg)
                                  (type-system-infer-type type-system arg typing-environment))
                                (arguments-of form))))
-       (return-type function-type)))))
+       (if function-type
+           (return-type function-type)
+           t)))))
 
 (defun canonize-type (type)
   (cond
@@ -67,7 +69,7 @@
     (loop for binding in (bindings-of form)
           do
              (setf fresh-typing-environment
-                   (setf (type-of-var fresh-typing-environment (name-of binding))
+                   (setf (type-of-var (name-of binding) fresh-typing-environment)
                          (if (not (cl-walker::type-spec binding))
                              (type-system-infer-type type-system (value-of binding) typing-environment)
                              (cl-walker::type-spec binding)))))
@@ -116,7 +118,7 @@
                                              (declares-of form))))
                         (if return-type-declaration
                             (cl-walker::type-of return-type-declaration)
-                                        ; else
+                            ;; else
                             (let ((fresh-typing-environment (copy-typing-environment typing-environment)))
                               (loop for (arg . type) in  arg-types
                                     do (setf (type-of-var arg fresh-typing-environment) type))
