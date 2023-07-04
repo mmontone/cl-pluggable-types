@@ -1,5 +1,5 @@
 (defpackage :gradual.test
-  (:use :cl :gradual :mw-equiv :fiveam)
+  (:use :cl :gradual :mw-equiv :fiveam :arrows)
   (:export #:run-tests))
 
 (in-package :gradual.test)
@@ -7,7 +7,7 @@
 (fiveam:in-suite* :gradual-tests)
 
 (defun run-tests ()
-  (5am:run :gradual-tests))
+  (5am:run! :gradual-tests))
 
 ;; (gradual::typed-defparameter *count* 1 "Count" integer)
 

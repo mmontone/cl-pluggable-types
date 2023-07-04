@@ -138,3 +138,63 @@
                                                       fresh-typing-environment))))))
     (make-function-type :required-args-types (mapcar #'cdr arg-types)
                         :return-type return-type)))
+
+(defmethod type-system-infer-type ((type-system gradual-type-system)
+                                   (form progn-form)
+                                   env)
+  (lastcar
+   (mapcar (lambda (f)
+             (type-system-infer-type type-system f env))
+           (body-of form))))
+
+(declaim (ftype (function (walked-form (function (walked-form) (values))) (values))
+                deep-walk-code))
+(defgeneric deep-walk-code (walked-form handler)
+  (:documentation "Walk across code."))
+
+(defmethod deep-walk-code ((form implicit-progn-mixin) handler)
+  (funcall handler form)
+  (dolist (subform (body-of form))
+    (deep-walk-code subform handler)))
+
+(defmethod deep-walk-code ((form let-form) handler)
+  (funcall handler form)
+  (dolist (binding (bindings-of form))
+    (deep-walk-code (value-of binding) handler))
+  (dolist (subform (body-of form))
+    (deep-walk-code subform handler)))
+
+(defmethod deep-walk-code ((form application-form) handler)
+  (funcall handler form)
+  (dolist (arg (arguments-of form))
+    (deep-walk-code arg handler)))
+
+(defmethod deep-walk-code ((form walked-form) handler)
+  (funcall handler form))
+
+(define-condition return-from-form-inferred ()
+  ((inferred-type :initarg :inferred-type
+                  :accessor return-from-inferred-type)))
+
+(defmethod type-system-infer-type ((type-system gradual-type-system)
+                                   (form return-from-form)
+                                   env)
+  (let ((type (type-system-infer-type type-system (result-of form) env)))
+    (signal 'return-from-form-inferred :inferred-type type)
+    type))
+
+(defmethod type-system-infer-type ((type-system gradual-type-system)
+                                   (form block-form)
+                                   env)
+  "The OR of the types of RETURN-FROMs and the type of the BODY."
+  (let ((return-from-types nil))
+    ;; Call infer recursively and setup a handler for return-from forms.
+    ;; The handler stores the inferred type and continues.
+    (handler-bind ((return-from-form-inferred
+                     (lambda (c)
+                       (push (return-from-inferred-type c) return-from-types))))
+      (let ((body-type (lastcar (mapcar (lambda (f)
+                                          (type-system-infer-type type-system f env))
+                                        (body-of form)))))
+        (canonize-type
+         `(or ,@return-from-types ,body-type))))))

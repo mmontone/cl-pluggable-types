@@ -31,3 +31,20 @@
        'number))
   (is (eql (gradual:infer-type '(apply #'make-instance 'foo) 'gradual-type-system)
            'foo)))
+
+(def-test progn-inference-test ()
+  (as-> (gradual:infer-type '(progn (foo) 22) 'gradual-type-system) type
+        (is (subtypep type 'integer))))
+
+(def-test block-inference-test ()
+  (gradual:infer-type '(block nil (foo) 22) 'gradual-type-system))
+
+(def-test prog1-inference-test ()
+  (as-> (gradual:infer-type '(prog1 22 "hello") 'gradual-type-system) type
+        (is (subtypep type 'number))))
+
+(def-test return-from-inference-test ()
+  (as-> (gradual:infer-type '(block nil
+                              (when t (return-from nil "hello"))
+                              (when nil (return-from nil 222)))
+                            'gradual-type-system)))
