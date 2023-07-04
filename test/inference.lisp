@@ -21,3 +21,13 @@
            'foo))
   (is (eql (gradual:infer-type '(apply #'make-instance 'foo) 'gradual-type-system)
            'foo)))
+
+(def-test apply-inference-test ()
+  (is (subtypep
+       (gradual:infer-type '(apply '+ 1 2) 'gradual-type-system)
+       'number))
+  (is (subtypep
+       (gradual:infer-type '(apply #'+ 1 2) 'gradual-type-system)
+       'number))
+  (is (eql (gradual:infer-type '(apply #'make-instance 'foo) 'gradual-type-system)
+           'foo)))

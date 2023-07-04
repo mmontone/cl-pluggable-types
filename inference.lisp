@@ -34,6 +34,12 @@
     ((and (eql (operator-of form) 'make-instance)
           (typep (first (arguments-of form)) 'cl-walker:constant-form))
      (value-of (first (arguments-of form))))
+    ;; test for: (apply 'something &rest args) or (apply #'something &rest args)
+    ((and (eql (operator-of form) 'apply)
+          (typep (first (arguments-of form)) '(or cl-walker:constant-form
+                                               cl-walker:free-function-object-form)))
+     ;; TODO:
+     'function)                                            
     ;; otherwise, use function type information
     (t
      (let ((function-type (fun-type (operator-of form)))
@@ -43,6 +49,11 @@
        (if function-type
            (return-type function-type)
            t)))))
+
+(defmethod type-system-infer-type ((type-system gradual-type-system)
+                                   (form free-function-object-form)
+                                   env)
+  (or (fun-type (name-of form)) 'function))
 
 (defun canonize-type (type)
   (cond
