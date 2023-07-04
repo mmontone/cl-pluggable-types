@@ -1,4 +1,6 @@
 (defpackage gradual
+  ;; TODO: use 'pluggable-types' as package name, not nickname
+  (:nicknames :pluggable-types)
   (:use :cl :cl-walker :anaphora :alexandria :mw-equiv)
   (:export #:fun-type
 	   #:var-type
