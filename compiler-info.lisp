@@ -37,3 +37,36 @@
 #+ccl
 (defun function-type (fname)
   (ccl::find-ftype-decl fname))
+
+;; Utils
+
+(declaim (ftype (function (list &optional (member declaim proclaim declare)) list) declare-derived-types))
+(defun declare-derived-types (symbols &optional (form 'declaim))
+  "Returns a DECLAIM form declaring the derived types of SYMBOLS."
+  (let ((types nil))
+    (dolist (symbol symbols)
+      (when (variable-type symbol)
+        (push `(type ,(variable-type symbol) ,symbol) types))
+      (when (function-type symbol)
+        (push `(ftype ,(function-type symbol) ,symbol) types)))
+    (if (eql form 'proclaim)
+        (mapcar (lambda (type)
+                  `(proclaim ',type))
+                types)
+        ;; else
+        `(,form ,@types))))
+
+(defun list-package-external-symbols (package)
+  (let ((symbols nil))
+    (do-external-symbols (var package)
+      (push var symbols))
+    symbols))
+
+(defun list-package-internal-symbols (package)
+  (let ((symbols nil))
+    (do-symbols (var package)
+      (when (eql (symbol-package var) package)
+        (push var symbols)))
+    symbols))
+
+;; (declare-derived-types (list-package-external-symbols *package*))
