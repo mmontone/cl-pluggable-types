@@ -26,8 +26,13 @@
                                    (form constant-form) typing-environment)
   (type-of (value-of form)))
 
+(defun first-value-type (type)
+  (if (typep type 'values-type)
+      (first (required-args-types type))
+      type))
+
 (defmethod type-system-infer-type ((type-system gradual-type-system)
-                                   (form free-application-form) typing-environment)
+                                   (form application-form) typing-environment)
   (cond
     ;; test for: (make-instance 'foo)
     ((and (eql (operator-of form) 'make-instance)
@@ -46,7 +51,7 @@
                                  (type-system-infer-type type-system arg typing-environment))
                                (arguments-of form))))
        (if function-type
-           (return-type function-type)
+           (first-value-type (return-type function-type))
            t)))))
 
 (defmethod type-system-infer-type ((type-system gradual-type-system)

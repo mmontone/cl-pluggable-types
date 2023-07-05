@@ -371,3 +371,12 @@
 ;; SBCL checks after declaim ftype, the type is set as the declared type of the function
 (describe #'assign-types-from-function-type-2)
 (compiler-info:function-type 'assign-types-from-function-type-2)
+
+
+;; Parametric types:
+;; This returns T, but would like it to return 'integer:
+
+(pluggable-types::infer-type 
+ '(let ((numbers (the (list-of integer) (list 1 2 3))))
+   (car numbers))
+ 'pluggable-types::gradual-type-system)
