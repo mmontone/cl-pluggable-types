@@ -199,8 +199,7 @@
         (canonize-type
          `(or ,@return-from-types ,body-type))))))
 
-
-(defun assign-types-from-function-type (function-type args &key (arg-name-accessor #'identity))
+(defun assign-types-from-function-type (function-type args)
   (assert (eql (first function-type) 'function))
   (destructuring-bind (_ arg-types return-type) function-type
     (declare (ignore _ return-type))
@@ -216,7 +215,7 @@
             (&required
              (let ((arg (pop args-queue)))
                (when (null arg)
-                 (error "Not enough args"))
+                 (error "Not enough arguments"))
              (push (cons arg arg-type) assignments)))
             (&optional
              (let ((arg (pop args-queue)))
@@ -240,6 +239,8 @@
             (error "Invalid key arguments in: ~s" args-queue)
             (error "Too many arguments")))
       (nreverse assignments))))
+
+#|
 
 (assign-types-from-function-type '(function () t) '())
 (assign-types-from-function-type '(function (number) t) '(x))
@@ -266,5 +267,107 @@
 (assign-types-from-function-type '(function (string &key (:y number)) t)
                                  '(x :y y :z "lala"))
 
-(assign-types-from-function-type '(function (&rest number) t)
-                                 '(x y z))
+(assign-types-from-function-type '(function (&rest number) t) '(x y z))
+
+|#
+
+;; Works over a walked application-form
+(defun assign-types-from-function-type-2 (function-type application-form)
+  (declare (type list function-type)
+           (type application-form application-form))
+  (assert (eql (first function-type) 'function))
+  (destructuring-bind (_ arg-types return-type) function-type
+    (declare (ignore _ return-type))
+    (let ((lambda-section '&required)
+          (assignments (list))
+          (args-queue (arguments-of application-form))
+          (keys-in-plist-format nil))
+      (dolist (arg-type arg-types)
+        (block nil
+          (when (member arg-type '(&optional &key &rest &aux))
+            (setf lambda-section arg-type)
+            (return))
+          (case lambda-section
+            (&required
+             (let ((arg (pop args-queue)))
+               (when (null arg)
+                 (error "Not enough arguments"))
+               (push (cons arg arg-type) assignments)))
+            (&optional
+             (let ((arg (pop args-queue)))
+               (when (null arg)
+                 (return))
+               (push (cons arg arg-type) assignments)))
+            (&key
+             ;; Convert the list of walked-forms to a plist
+             (when (not keys-in-plist-format)
+               (setf args-queue (loop for key in args-queue by #'cddr
+                                      for value in (rest args-queue) by #'cddr
+                                      collect (value-of key)
+                                      collect value))
+               (setf keys-in-plist-format t))
+             (destructuring-bind (key type) arg-type
+               (let ((arg-val (getf args-queue key)))
+                 (when arg-val
+                   (push (cons arg-val type) assignments)))
+               (alexandria:remove-from-plistf args-queue key)))
+            (&rest
+             ;; Consume all the passed args
+             (dolist (arg args-queue)
+               (push (cons arg arg-type) assignments))
+             (setf args-queue nil)))))
+      (unless (null args-queue)
+        (if (eql lambda-section '&key)
+            (error "Invalid key arguments in: ~s" args-queue)
+            (error "Too many arguments")))
+      (nreverse assignments))))
+
+#|
+
+(assign-types-from-function-type-2 '(function () t) (walk-form '(foo)))
+(assign-types-from-function-type-2 '(function (number) t) (walk-form '(foo x)))
+(assign-types-from-function-type-2 '(function (string &optional number) t)
+                                      (walk-form '(foo x)))
+(assign-types-from-function-type-2 '(function (string &optional number) t)
+                                    (walk-form '(foo)))
+
+(assign-types-from-function-type-2 '(function (string &optional number) t)
+                                    (walk-form '(foo x y)))
+
+(assign-types-from-function-type-2 '(function (string &optional number) t)
+                                 (walk-form '(foo x y z)))
+
+(assign-types-from-function-type-2 '(function (string &key (:y number)) t)
+                                 (walk-form '(foo x)))
+
+(assign-types-from-function-type-2 '(function (string &key (:y number)) t)
+                                 (walk-form '(foo x :y y)))
+
+(assign-types-from-function-type-2 '(function (string &key (:y number)) t)
+                                  (walk-form '(foo x :y y :z "lala")))
+
+(assign-types-from-function-type '(function (string &key (:y number)) t)
+                                 '(x :y y :z "lala"))
+
+(assign-types-from-function-type-2 '(function (&rest number) t)
+                                  (walk-form '(foo x y z)))
+
+|#
+
+;; Type is not checked by SBCL!! when just using
+;; (declare (type list function-type) (type application-form application-form))
+;; as it seems the types are only interpreted as derived type, and checking
+;; does not work with derived types (?)
+
+(compiler-info:function-type 'assign-types-from-function-type-2)
+(describe #'assign-types-from-function-type-2)
+
+(defun foo ()
+  (assign-types-from-function-type-2 nil nil))
+
+;; after declaim ftype:
+(declaim (ftype (function (list application-form) list) assign-types-from-function-type-2))
+
+;; SBCL checks after declaim ftype, the type is set as the declared type of the function
+(describe #'assign-types-from-function-type-2)
+(compiler-info:function-type 'assign-types-from-function-type-2)
