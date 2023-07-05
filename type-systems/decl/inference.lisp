@@ -198,3 +198,73 @@
                                         (body-of form)))))
         (canonize-type
          `(or ,@return-from-types ,body-type))))))
+
+
+(defun assign-types-from-function-type (function-type args &key (arg-name-accessor #'identity))
+  (assert (eql (first function-type) 'function))
+  (destructuring-bind (_ arg-types return-type) function-type
+    (declare (ignore _ return-type))
+    (let ((lambda-section '&required)
+          (assignments)
+          (args-queue args))
+      (dolist (arg-type arg-types)
+        (block nil
+          (when (member arg-type '(&optional &key &rest &aux))
+            (setf lambda-section arg-type)
+            (return))
+          (case lambda-section
+            (&required
+             (let ((arg (pop args-queue)))
+               (when (null arg)
+                 (error "Not enough args"))
+             (push (cons arg arg-type) assignments)))
+            (&optional
+             (let ((arg (pop args-queue)))
+               (when (null arg)
+                 (return))
+               (push (cons arg arg-type) assignments)))
+            (&key
+             (destructuring-bind (key type) arg-type
+               (let ((arg-val (getf args-queue key)))
+                 (when arg-val
+                   (push (cons arg-val type) assignments)))
+               (alexandria:remove-from-plistf args-queue key)))
+            (&rest
+             ;; Consume all the passed args
+             (dolist (arg args-queue)
+               (push (cons arg arg-type)
+                     assignments))
+             (setf args-queue nil)))))
+      (unless (null args-queue)
+        (if (eql lambda-section '&key)
+            (error "Invalid key arguments in: ~s" args-queue)
+            (error "Too many arguments")))
+      (nreverse assignments))))
+
+(assign-types-from-function-type '(function () t) '())
+(assign-types-from-function-type '(function (number) t) '(x))
+(assign-types-from-function-type '(function (string &optional number) t)
+                                 '(x))
+(assign-types-from-function-type '(function (string &optional number) t)
+                                 '())
+
+(assign-types-from-function-type '(function (string &optional number) t)
+                                 '(x y))
+
+(assign-types-from-function-type '(function (string &optional number) t)
+                                 '(x y z))
+
+(assign-types-from-function-type '(function (string &key (:y number)) t)
+                                 '(x))
+
+(assign-types-from-function-type '(function (string &key (:y number)) t)
+                                 '(x :y y))
+
+(assign-types-from-function-type '(function (string &key (:y number)) t)
+                                 '(x :y y :z "lala"))
+
+(assign-types-from-function-type '(function (string &key (:y number)) t)
+                                 '(x :y y :z "lala"))
+
+(assign-types-from-function-type '(function (&rest number) t)
+                                 '(x y z))
