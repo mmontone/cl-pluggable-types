@@ -1,18 +1,23 @@
 A possible plan:
-- Use standard Lisp declarations. (declaim (ftype ...)) etc.
-- Use custom declarations. See the DECLARATION declaration. (declaim (declaration my-custom-declaration))
+- Use standard Lisp declarations. (declaim (ftype ...)) etc.xs
+- Use custom declarations. See the DECLARATION declaration. (declaim (declaration my-custom-declaration)).
+Could use an type* and ftype* declaration that contain more rich types, that are consumed by the pluggable type system, and don't affect the program if pluggable types are not used.
 - Implement a portable library for obtaining the types of functions (compiler-info library).
 - Read definitions from file using READ function. Use a code-walker to parse and typecheck those definitions.
 - "Fake" composite types, using deftype and ignoring arguments, but then the typechecker can look at those. Example: (list-of integer).
  where:
 
-(deftype list-of (what) 
-  (declare (ignore what))
+(deftype list-of (a) 
+  (declare (ignore a))
   'list)
+
+(deftype cons-of (a b)
+  (declare (ignore a b))
+  'cons)
   
 Also polymorphic vars:
 
-(all (x) (function ((list x)) x))
+(all (x) (function ((list-of x)) x))
   
  Problem: the original type spec is not kept, only the macro-expanded.
  Possible "solution": re-read the declarations when available and use those, or type-check with the expanded type, badly.
