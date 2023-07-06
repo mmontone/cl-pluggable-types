@@ -22,3 +22,7 @@ Also polymorphic vars:
  Problem: the original type spec is not kept, only the macro-expanded.
  Possible "solution": re-read the declarations when available and use those, or type-check with the expanded type, badly.
  Solution 2: use an alternative implementation of declaim. extensible and keeps the original declaration.
+
+Consider conditional reader with shadowed declaration symbols:
+#+pluggable-types
+(declaim (pluggable-types:ftype (all (a) (function (a) boolean)) my-func))
