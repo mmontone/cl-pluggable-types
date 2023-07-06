@@ -56,12 +56,14 @@
         ;; else
         `(,form ,@types))))
 
+(declaim (ftype (function (package) list) list-package-external-symbols))
 (defun list-package-external-symbols (package)
   (let ((symbols nil))
     (do-external-symbols (var package)
       (push var symbols))
     symbols))
 
+(declaim (ftype (function (package) list) list-package-internal-symbols))
 (defun list-package-internal-symbols (package)
   (let ((symbols nil))
     (do-symbols (var package)
