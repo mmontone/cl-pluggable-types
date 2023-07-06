@@ -1,5 +1,6 @@
 A possible plan:
 - Use standard Lisp declarations. (declaim (ftype ...)) etc.
+- Use custom declarations. See the DECLARATION declaration. (declaim (declaration my-custom-declaration))
 - Implement a portable library for obtaining the types of functions (compiler-info library).
 - Read definitions from file using READ function. Use a code-walker to parse and typecheck those definitions.
 - "Fake" composite types, using deftype and ignoring arguments, but then the typechecker can look at those. Example: (list-of integer).
