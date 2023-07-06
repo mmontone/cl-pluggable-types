@@ -1,7 +1,7 @@
 A possible plan:
 - Use standard Lisp declarations. (declaim (ftype ...)) etc.xs
 - Use custom declarations. See the DECLARATION declaration. (declaim (declaration my-custom-declaration)).
-Could use an type* and ftype* declaration that contain more rich types, that are consumed by the pluggable type system, and don't affect the program if pluggable types are not used.
+Could use an type* and ftype* declaration that contain richer type specs, that are consumed by the pluggable type system, and don't affect the program if pluggable types are not used.
 - Implement a portable library for obtaining the types of functions (compiler-info library).
 - Read definitions from file using READ function. Use a code-walker to parse and typecheck those definitions.
 - "Fake" composite types, using deftype and ignoring arguments, but then the typechecker can look at those. Example: (list-of integer).
