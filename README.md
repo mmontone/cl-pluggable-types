@@ -10,6 +10,7 @@ Papers:
 * [Typed Scheme: From Scripts to Programs](http://www.ccs.neu.edu/racket/pubs/dissertation-tobin-hochstadt.pdf)
 * [Languages as Libraries](http://www.cs.utah.edu/plt/publications/pldi11-tscff.pdf)
 * [Gradual typing for Smalltalk](http://pleiad.cl/research/publications?key=allendeAl-scp2013)
+* [Extending Dylan type system for better type inference and error detection](https://www.researchgate.net/publication/228771491_Extending_Dylan's_type_system_for_better_type_inference_and_error_detection)
 
 Other implementations:
 
