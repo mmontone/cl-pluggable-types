@@ -4,12 +4,15 @@ A possible plan:
 - Read definitions from file using READ function. Use a code-walker to parse and typecheck those definitions.
 - "Fake" composite types, using deftype and ignoring arguments, but then the typechecker can look at those. Example: (list-of integer).
  where:
+
 (deftype list-of (what) 
   (declare (ignore what))
   'list)
-  Also polymorphic vars:
-  (deftype <a> ()
-     't)
+  
+Also polymorphic vars:
+
+(all (x) (function ((list x)) x))
+  
  Problem: the original type spec is not kept, only the macro-expanded.
  Possible "solution": re-read the declarations when available and use those, or type-check with the expanded type, badly.
  Solution 2: use an alternative implementation of declaim. extensible and keeps the original declaration.
