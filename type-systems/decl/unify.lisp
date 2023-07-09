@@ -106,3 +106,94 @@ Now we take the following constraints:
 
 
 |#
+
+#|
+
+(generate '(+ 12 x))
+
+Env: + -> g1, x -> g2, 12 -> g3, (+ 12 x) -> g4, (g1, .., gN) type variables.
+
+g2 = g2
+g2 = integer
+g3 = g3
+g4 = integer
+g1 = (function (g2 g3) g4)
+
+Unify:
+g1 = (function (integer g3) integer)
+
+|#
+
+(defstruct type-env
+  (symbol-nr 0)
+  (vars nil)
+  (constraints nil))
+
+(defun new-var (form env)
+  (let ((var
+          (list 'var
+                (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))))
+    (push (cons var form) (type-env-vars env))
+    var))
+
+(defun add-constraint (x y env)
+  (push (cons x y) (type-env-constraints env)))
+
+(defgeneric generate-type-constraints (form env locals))
+
+(defmethod generate-type-constraints ((form constant-form) env locals)
+  (let ((var (new-var form env)))
+    (add-constraint var (type-of (value-of form)) env)
+    var))
+
+(defmethod generate-type-constraints ((form let-form) env locals)
+  (let ((let-locals locals))
+    (dolist (binding (bindings-of form))
+      (let ((binding-value-var
+              (generate-type-constraints (initial-value-of binding) env locals)))
+        (let ((binding-var (new-var binding env)))
+          (add-constraint binding-var binding-value-var env)
+          (push (cons (name-of binding) binding-var) let-locals))))
+    (dolist (body-form (body-of form))
+      (generate-type-constraints body-form env let-locals))))
+
+(defmethod generate-type-constraints ((form lexical-variable-reference-form) env locals)
+  (let ((var (new-var form env))
+        (local-var (or (cdr (find (name-of form) locals :key #'car))
+                       (error "Badly done"))))
+    (add-constraint var local-var env)))
+
+(defmethod generate-type-constraints ((form application-form) env locals)
+  (let* ((func-type (or (compiler-info:function-type (operator-of form))
+                        '(function (&rest t) t)))
+         (arg-types (assign-types-from-function-type
+                     func-type
+                     (arguments-of form)))
+         (arg-vars nil))
+    ;; Constraint the types of the arguments
+    (dolist (arg-type arg-types)
+      (let ((var (new-var (first arg-type) env)))
+        (add-constraint var (cdr arg-type) env)
+        (push var arg-vars)))
+
+    ;; Constraint the type of the application
+    (let* ((return-type (last func-type))
+           (app-var (new-var form env))
+           (func-var (new-var (operator-of form) env)))
+      (add-constraint app-var return-type env)
+      (add-constraint func-var `(function ,arg-vars ,app-var) env))))
+
+
+(defparameter *env* (make-type-env))
+
+(generate-type-constraints (hu.dwim.walker:walk-form '(let ((x 22))
+                                                       x))
+                           *env* nil)
+
+(generate-type-constraints (hu.dwim.walker:walk-form '(let ((x 22))
+                                                       (+ x 45)))
+                           *env* nil)
+
+(type-env-constraints *env*)
+
+(type-env-vars *env*)
