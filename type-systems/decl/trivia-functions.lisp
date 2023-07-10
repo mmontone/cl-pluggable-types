@@ -18,7 +18,7 @@
          (multiple-value-bind (result matchedp)
              (funcall method ,@args)
            (when matchedp
-             (return-from ,fname result)))))))
+             (return-from ,fname (values result t))))))))
 
 (defmacro define-match-method (fname (pattern &rest args) &body body)
   (unless (get fname :trivia-function)

@@ -2,6 +2,12 @@
 
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
+(trivia-functions:define-match-function can-unify-types? (types))
+
+(trivia-functions:define-match-method can-unify-types?
+    ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
+  (can-unify? elem-type-a elem-type-b))
+
 (defgeneric can-unify? (type1 type2))
 
 (defmethod can-unify? (type1 type2)
@@ -17,8 +23,19 @@
        (declare (ignore _ args))
        (can-unify? type1 t2)))
     (t
-     (or (subtypep type1 type2)
-         (subtypep type2 type1)))))
+     (multiple-value-bind (can-unify? matchedp)
+         (can-unify-types? (list type1 type2))
+       (when matchedp
+         (return-from can-unify? can-unify?))
+       ;; otherwise
+       (or (subtypep type1 type2)
+           (subtypep type2 type1))))))
+
+(can-unify-types? '((list-of integer) (list-of string)))
+
+(can-unify? '(list-of integer) '(list-of number))
+(can-unify? '(list-of integer) '(list-of string))
+(can-unify? '(list-of integer) 'number)
 
 (defun unify-one (term1 term2)
   (trivia:match (list term1 term2)
@@ -247,7 +264,8 @@ g1 = (function (integer g3) integer)
 (defparameter *type-declarations* '())
 (push '(ftype* (all (a) (function (a) a)) identity) *type-declarations*)
 (push '(ftype* (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
-        mapcar))
+        mapcar)
+      *type-declarations*)
 
 (defun get-func-type (fname)
   ;; First try to get from the read declarations
@@ -371,3 +389,6 @@ g1 = (function (integer g3) integer)
 (multiple-value-list (infer-form '(the (list-of integer) 22)))
 
 (multiple-value-list (infer-form '(the (list-of integer) '("asdf"))))
+
+(infer-form '(mapcar #'+ (the (list-of number) '(1 2 3))))
+
