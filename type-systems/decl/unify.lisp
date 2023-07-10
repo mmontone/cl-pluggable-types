@@ -2,66 +2,63 @@
 
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
-(trivia-functions:define-match-function can-unify-types? (types))
+(trivia-functions:define-match-function unify-types (types))
 
-(trivia-functions:define-match-method can-unify-types?
+(trivia-functions:define-match-method unify-types
+    ((list (list 'values type) other-type))
+  (unify-one type other-type))
+
+(trivia-functions:define-match-method unify-types
+    ((list other-type (list 'values type)))
+  (unify-one type other-type))
+
+(trivia-functions:define-match-method unify-types
     ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
-  (can-unify? elem-type-a elem-type-b))
+  (unify-one elem-type-a elem-type-b))
 
-(defgeneric can-unify? (type1 type2))
-
-(defmethod can-unify? (type1 type2)
-  (cond
-    ((and (listp type1)
-          (eql (car type1) 'values))
-     (destructuring-bind (_ t1 &rest args) type1
-       (declare (ignore _ args))
-       (can-unify? t1 type2)))
-    ((and (listp type2)
-          (eql (car type2) 'values))
-     (destructuring-bind (_ t2 &rest args) type2
-       (declare (ignore _ args))
-       (can-unify? type1 t2)))
-    (t
-     (multiple-value-bind (can-unify? matchedp)
-         (can-unify-types? (list type1 type2))
-       (when matchedp
-         (return-from can-unify? can-unify?))
-       ;; otherwise
-       (or (subtypep type1 type2)
-           (subtypep type2 type1))))))
-
-(can-unify-types? '((list-of integer) (list-of string)))
-
-(can-unify? '(list-of integer) '(list-of number))
-(can-unify? '(list-of integer) '(list-of string))
-(can-unify? '(list-of integer) 'number)
+(trivia-functions:define-match-method unify-types
+    ((list (list 'function args-1 return-value-1)
+           (list 'function args-2 return-value-2)))
+  (append (unify-one return-value-1 return-value-2)
+          (apply #'append
+                 (mapcar (lambda (args)
+                           (apply #'unify-one args))
+                         (mapcar #'list args-1 args-2)))))
 
 (defun unify-one (term1 term2)
-  (trivia:match (list term1 term2)
-    ((list (list 'var x) (list 'var y))
-     (cons x (list 'var y)))
-    ((list type (list 'var x))
-     (cons x type))
-    ((list (list 'var x) type)
-     (cons x type))
-    ((list type1 type2)
-     (unless (can-unify? type1 type2)
-       (error "Can't unify: ~s with: ~s" type1 type2))
-     nil)))
+  (cond
+    ((and (listp term1)
+          (eql (car term1) 'values))
+     (destructuring-bind (_ t1 &rest args) term1
+       (declare (ignore _ args))
+       (unify-one t1 term2)))
+    ((and (listp term2)
+          (eql (car term2) 'values))
+     (destructuring-bind (_ t2 &rest args) term2
+       (declare (ignore _ args))
+       (unify-one term1 t2)))
+    (t
+     (trivia:match (list term1 term2)
+       ((list (list 'var x) (list 'var y))
+        (list (cons x (list 'var y))))
+       ((list type (list 'var x))
+     (list (cons x type)))
+       ((list (list 'var x) type)
+        (list (cons x type)))
+       ((list type1 type2)
+        (multiple-value-bind (subst unified?)
+            (unify-types (list term1 term2))
+          (unless unified?
+            (unless (or (subtypep type1 type2)
+                        (subtypep type2 type1))
+              (error "Can't unify: ~s with: ~s" type1 type2)))
+          subst))))))
 
-;; (defun subst (sub term)
-;;   (trivia:match (list sub term)
-;;     ((list (cons (list 'var x) s)
-;;            (list 'var y))
-;;      (if (eql x y) s term))
-;;     ((list (cons (list 'var x) s)
-;;            term)
-;;      (if (listp term)
-;;          (mapcar (lambda (subterm)
-;;                    (subst sub subterm))
-;;                  term)
-;;          term))))
+(unify-one '(list-of integer) '(list-of string))
+
+(unify-one '(list-of integer) '(list-of number))
+(can-unify? '(list-of integer) '(list-of string))
+(can-unify? '(list-of integer) 'number)
 
 (defun subst-term (assignment term)
   (trivia:match (list assignment term)
@@ -90,7 +87,7 @@
            (sub2
              (unify-one (apply-substitution substitution (car constraint))
                         (apply-substitution substitution (cdr constraint)))))
-      (append substitution (list sub2)))))
+      (append substitution sub2))))
 
 (trace unify)
 (trace unify-one)
@@ -320,6 +317,11 @@ g1 = (function (integer g3) integer)
       (add-constraint app-var return-type env)
       ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
       app-var)))
+
+(defmethod generate-type-constraints ((form free-function-object-form) env locals)
+  (let ((var (new-var form env)))
+    (add-constraint var (get-func-type (name-of form)) env)
+    var))
 
 (defparameter *env* (make-type-env))
 
