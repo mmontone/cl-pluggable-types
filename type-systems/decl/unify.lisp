@@ -204,9 +204,11 @@ g1 = (function (integer g3) integer)
           (add-constraint binding-var binding-value-var env)
           (push (cons (name-of binding) binding-var) let-locals))))
     ;; The type of the let is the type of the last expression in body, so return that
-    (let ((let-var nil))
+    (let ((body-var nil)
+          (let-var (new-var form env)))
       (dolist (body-form (body-of form))
-        (setf let-var (generate-type-constraints body-form env let-locals)))
+        (setf body-var (generate-type-constraints body-form env let-locals)))
+      (add-constraint let-var body-var env)
       let-var)))
 
 (defmethod generate-type-constraints ((form lexical-variable-reference-form) env locals)
@@ -272,18 +274,29 @@ g1 = (function (integer g3) integer)
 (unify (type-env-constraints *env*))
 
 (defun infer-form (form)
-  (let ((type-env (make-type-env)))
-    (generate-type-constraints (hu.dwim.walker:walk-form form) type-env nil)
+  (let ((type-env (make-type-env))
+        (walked-form (hu.dwim.walker:walk-form form)))
+    (generate-type-constraints walked-form type-env nil)
     (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))
-    (let ((result nil))
+    (let ((type-assignments nil))
       (dolist (type-assignment (type-env-unified type-env))
         (trivia:match type-assignment
           ((cons x type)
            (let ((expr (cdr (assoc x (type-env-vars type-env)))))
-             (push (cons expr type) result)))))
-      (values result type-env))))
+             (push (cons expr type) type-assignments)))))
+      (values
+       ;; type of the walked form
+       (cdr (assoc walked-form type-assignments))
+       ;; type-assignments of all subexpressions
+       type-assignments
+       ;; type environment
+       type-env))))
 
 (multiple-value-list (infer-form 22))
 (infer-form '(let ((x "lla")) (concatenate 'string x)))
 
-(infer-form '(let ((x "lla")) x))                     
+(infer-form '(let ((x "lla")) x))
+
+(infer-form '(let ((x 34)
+                   (y 56))
+              (+ x (- y x))))
