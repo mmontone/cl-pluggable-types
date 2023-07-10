@@ -249,14 +249,15 @@ g1 = (function (integer g3) integer)
         (when (eql (lastcar declaration-body) fname)
           (return-from get-func-type (car declaration-body))))))
   ;; If none found, use compiler information
-  (compiler-info:function-type fname))
+  (or (compiler-info:function-type fname)
+      ;; Or a generic function type
+      '(function (&rest t) t)))
 
 ;; (get-func-type 'identity)
 ;; (get-func-type 'concatenate)
 
 (defmethod generate-type-constraints ((form application-form) env locals)
-  (let* ((func-type (or (compiler-info:function-type (operator-of form))
-                        '(function (&rest t) t)))
+  (let* ((func-type (get-func-type (operator-of form)))
          (arg-types (assign-types-from-function-type
                      func-type
                      (arguments-of form)))
@@ -323,3 +324,5 @@ g1 = (function (integer g3) integer)
               (+ x (- y x))))
 
 (multiple-value-list (infer-form '(+ 22 "lala")))
+
+(multiple-value-list (infer-form '(identity 22)))
