@@ -1,7 +1,7 @@
 (in-package :pluggable-types/decl)
 
-(defun typecheck-file
-    (file)
+(declaim (ftype* (function (pathname) (list-of t)) typecheck-file))
+(defun typecheck-file (file)
   (let (defs)
     (with-open-file (in file)
       (let ((eof (list nil)))
@@ -14,4 +14,19 @@
             (push (cons file-position def) defs)))))
     (nreverse defs)))
 
+(declaim (ftype* (function (pathname) (list-of t)) read-type-declarations-from-file))
+(defun read-type-declarations-from-file (pathname)
+  (let (decls)
+    (with-open-file (in pathname)
+      (let ((eof (list nil)))
+        (do ((file-position (file-position in) (file-position in))
+	     (code (read in nil eof) (read in nil eof)))
+            ((eq code eof) (values))
+          (trivia:match code
+            ((list 'declaim (cons declaration-type declaration-body))
+             (when (member (symbol-name declaration-type) '("FTYPE" "TYPE" "TYPE*" "FTYPE*")
+                           :test #'string=)
+               (push (cons declaration-type declaration-body) decls)))))))
+    (nreverse decls)))
 
+;; (read-type-declarations-from-file #p"/mnt/sdb2/home/marian/src/lisp/cl-pluggable-types/type-systems/decl/read.lisp")
