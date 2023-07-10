@@ -175,13 +175,14 @@ g1 = (function (integer g3) integer)
 (defstruct type-env
   (symbol-nr 0)
   (vars nil)
-  (constraints nil))
+  (constraints nil)
+  (unified nil))
 
 (defun new-var (form env)
-  (let ((var
-          (list 'var
-                (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))))
-    (push (cons var form) (type-env-vars env))
+  (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
+         (var
+          (list 'var varname)))
+    (push (cons varname form) (type-env-vars env))
     var))
 
 (defun add-constraint (x y env)
@@ -251,8 +252,21 @@ g1 = (function (integer g3) integer)
 
 (type-env-vars *env*)
 
-(unify-one '(var x) '(var y))
+(unify (type-env-constraints *env*))
 
-(subst 'y 'x (list (list 'x)))
+(defun infer-form (form)
+  (let ((type-env (make-type-env)))
+    (generate-type-constraints (hu.dwim.walker:walk-form form) type-env nil)
+    (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))
+    (let ((result nil))
+      (dolist (type-assignment (type-env-unified type-env))
+        (trivia:match type-assignment
+          ((cons x type)
+           (let ((expr (cdr (assoc x (type-env-vars type-env)))))
+             (push (cons expr type) result)))))
+      (values result type-env))))
 
+(multiple-value-list (infer-form 22))
+(infer-form '(let ((x "lla")) (concatenate 'string x)))
 
+(infer-form '(let ((x "lla")) x))                     
