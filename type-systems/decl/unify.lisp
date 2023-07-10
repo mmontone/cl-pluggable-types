@@ -46,16 +46,16 @@
 ;;          term))))
 
 (defun subst-term (assignment term)
-  (or (trivia:match (list assignment term)
-        ((list (cons varname val) (list 'var x))
-         (if (eql varname x)
-             val
-             term)))
-      (cond
-        ((listp term)
-         (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
-        (t
-         term))))
+  (trivia:match (list assignment term)
+    ((list (cons varname val) (list 'var x))
+     (if (eql varname x)
+         val
+         term))
+    (_
+     (cond
+       ((listp term)
+        (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
+       (t term)))))
 
 ;; A substituion is a list of assignments
 (defun apply-substitution (assignments term)
@@ -256,8 +256,23 @@ g1 = (function (integer g3) integer)
 ;; (get-func-type 'identity)
 ;; (get-func-type 'concatenate)
 
+(defun instantiate-type (type env)
+  (trivia:match type
+    ((list 'all type-args type)
+     (let ((type-instance type))
+       (dolist (type-arg type-args)
+         (let ((type-var (new-var type-arg env)))
+           (setq type-instance (subst type-var type-arg type-instance))))
+       type-instance))
+    (_ type)))
+
+;; (instantiate-type '(all (a) (list-of a)) (make-type-env))
+;; (instantiate-type '(all (a) (function (a) a)) (make-type-env))
+;; (instantiate-type 'integer (make-type-env))
+;; (instantiate-type '(function (integer) t) (make-type-env))
+
 (defmethod generate-type-constraints ((form application-form) env locals)
-  (let* ((func-type (get-func-type (operator-of form)))
+  (let* ((func-type (instantiate-type (get-func-type (operator-of form)) env))
          (arg-types (assign-types-from-function-type
                      func-type
                      (arguments-of form)))
@@ -276,7 +291,7 @@ g1 = (function (integer g3) integer)
            (app-var (new-var form env))
            (func-var (new-var (operator-of form) env)))
       (add-constraint app-var return-type env)
-      (add-constraint func-var `(function ,arg-vars ,app-var) env)
+      ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
       app-var)))
 
 (defparameter *env* (make-type-env))
@@ -325,4 +340,17 @@ g1 = (function (integer g3) integer)
 
 (multiple-value-list (infer-form '(+ 22 "lala")))
 
+;; Evaluates to integer! : uses the (all (a) (function (a) a)) type !! :-)
 (multiple-value-list (infer-form '(identity 22)))
+
+(let ((env (make-type-env)))
+  (generate-type-constraints
+   (hu.dwim.walker:walk-form '(+ 22 "lala"))
+   env nil)
+  env)
+
+(let ((env (make-type-env)))
+  (generate-type-constraints
+   (hu.dwim.walker:walk-form '(identity 40))
+   env nil)
+  env)
