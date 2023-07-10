@@ -5,7 +5,7 @@
 (defun unify-one (term1 term2)
   (trivia:match (list term1 term2)
     ((list (list 'var x) (list 'var y))
-     (cons x y))
+     (cons x (list 'var y)))
     ((list type (list 'var x))
      (cons x type))
     ((list (list 'var x) type)
@@ -13,24 +13,37 @@
     ((list type1 type2)
      (error "no unify: ~s ~s" type1 type2))))
 
-(defun subst (sub term)
-  (trivia:match (list sub term)
-    ((list (cons (list 'var x) s)
-           (list 'var y))
-     (if (eql x y) s term))
-    ((list (cons (list 'var x) s)
-           term)
-     (if (listp term)
-         (mapcar (lambda (subterm)
-                   (subst sub subterm))
-                 term)
-         term))))
-         
-(defun apply-substitution (sub term)
-  (if (null sub)
-      term
-      (destructuring-bind (what . substitution) sub
-        (subst substitution what term :test #'equalp))))
+;; (defun subst (sub term)
+;;   (trivia:match (list sub term)
+;;     ((list (cons (list 'var x) s)
+;;            (list 'var y))
+;;      (if (eql x y) s term))
+;;     ((list (cons (list 'var x) s)
+;;            term)
+;;      (if (listp term)
+;;          (mapcar (lambda (subterm)
+;;                    (subst sub subterm))
+;;                  term)
+;;          term))))
+
+(defun subst-term (assignment term)
+  (or (trivia:match (list assignment term)
+          ((list (cons varname val) (list 'var x))
+           (if (eql varname x)
+               val
+               term)))
+       (cond
+         ((listp term)
+          (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
+         (t
+          term))))
+
+;; A substituion is a list of assignments
+(defun apply-substitution (assignments term)
+  (let ((new-term term))
+    (dolist (assignment assignments)
+      (setq new-term (subst-term assignment new-term)))
+    new-term))
 
 (defun unify (constraints)
   "Unify CONSTRAINTS."
@@ -40,7 +53,7 @@
            (sub2
              (unify-one (apply-substitution substitution (car constraint))
                         (apply-substitution substitution (cdr constraint)))))
-      (append substitution sub2))))
+      (append substitution (list sub2)))))
 
 (trace unify)
 (trace unify-one)
@@ -49,12 +62,12 @@
 (unify '(((var x) . (var y)))) => '((x . (var y)))
 (unify '(((var x) . integer))) => '((x . integer))
 (unify '((integer . (var x)))) => '((x . integer))
-(unify '((var x) . (list-of integer)) => '((x . (list-of integer)))
+(unify '(((var x) . (list-of integer)))) => '((x . (list-of integer)))
 (unify '((all (a) (list-of a)) . integer)) => '((a . integer))
 (unify '(integer . (all (a) (list-of a)))) => '((a . integer))
 
-(unify '(integer . boolean)) => error
-(unify '((var x) . integer)  ((var x) . boolean)) => error
+(unify '(((var x) . integer) ((var x) . boolean))) => error
+(unify '(((var x) . integer) ((var y) . boolean) ((var x) . (var y))))
 
 The steps:
 (unify '((var x) . integer) ((var x) . boolean)) =>
