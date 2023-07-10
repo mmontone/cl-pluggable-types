@@ -86,3 +86,5 @@ if we strictly followed CLHS, then it should be the following:
 ;; Then the typechecker:
 ;; If the passed function-designator is a symbol, the type system checks that,
 ;; if the symbol is the name of a function with a type, and uses that type.
+
+(declaim (ftype* (all (a) (function (a) a)) identity))

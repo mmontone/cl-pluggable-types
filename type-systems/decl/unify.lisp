@@ -216,6 +216,23 @@ g1 = (function (integer g3) integer)
     (add-constraint var local-var env)
     var))
 
+(defparameter *type-declarations* '())
+(push '(ftype* (all (a) (function (a) a)) identity) *type-declarations*)
+
+(defun get-func-type (fname)
+  ;; First try to get from the read declarations
+  (dolist (decl *type-declarations*)
+    (destructuring-bind (declaration-type &rest declaration-body) decl
+      (when (member (symbol-name declaration-type) '("FTYPE" "FTYPE*")
+                    :test #'string=)
+        (when (eql (lastcar declaration-body) fname)
+          (return-from get-func-type (car declaration-body))))))
+  ;; If none found, use compiler information
+  (compiler-info:function-type fname))
+
+;; (get-func-type 'identity)
+;; (get-func-type 'concatenate)
+
 (defmethod generate-type-constraints ((form application-form) env locals)
   (let* ((func-type (or (compiler-info:function-type (operator-of form))
                         '(function (&rest t) t)))
