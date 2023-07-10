@@ -25,6 +25,20 @@
                            (apply #'unify-one args))
                          (mapcar #'list args-1 args-2)))))
 
+(trivia-functions:define-match-method unify-types
+    ((list (list 'function args-1 return-value-1)
+           (list 'function (list '&rest rest-type) return-value-2)))
+  (append (unify-one return-value-1 return-value-2)
+          (apply #'append
+                 (mapcar (curry #'unify-one rest-type) args-1))))
+
+(trivia-functions:define-match-method unify-types
+    ((list (list 'function (list '&rest rest-type) return-value-1)
+           (list 'function args-2 return-value-2)))
+  (append (unify-one return-value-1 return-value-2)
+          (apply #'append
+                 (mapcar (curry #'unify-one rest-type) args-2))))
+
 (defun unify-one (term1 term2)
   (cond
     ((and (listp term1)
@@ -393,4 +407,3 @@ g1 = (function (integer g3) integer)
 (multiple-value-list (infer-form '(the (list-of integer) '("asdf"))))
 
 (infer-form '(mapcar #'+ (the (list-of number) '(1 2 3))))
-
