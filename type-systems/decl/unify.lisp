@@ -3,17 +3,52 @@
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
 (defun unify-one (term1 term2)
-  
-  )
+  (trivia:match (list term1 term2)
+    ((list (list 'var x) (list 'var y))
+     (cons x y))
+    ((list type (list 'var x))
+     (cons x type))
+    ((list (list 'var x) type)
+     (cons x type))
+    ((list type1 type2)
+     (error "no unify: ~s ~s" type1 type2))))
+
+(defun subst (sub term)
+  (trivia:match (list sub term)
+    ((list (cons (list 'var x) s)
+           (list 'var y))
+     (if (eql x y) s term))
+    ((list (cons (list 'var x) s)
+           term)
+     (if (listp term)
+         (mapcar (lambda (subterm)
+                   (subst sub subterm))
+                 term)
+         term))))
+         
+(defun apply-substitution (sub term)
+  (if (null sub)
+      term
+      (destructuring-bind (what . substitution) sub
+        (subst substitution what term :test #'equalp))))
 
 (defun unify (constraints)
   "Unify CONSTRAINTS."
-  )
+  (when constraints
+    (let* ((substitution (unify (rest constraints)))
+           (constraint (first constraints))
+           (sub2
+             (unify-one (apply-substitution substitution (car constraint))
+                        (apply-substitution substitution (cdr constraint)))))
+      (append substitution sub2))))
 
-#|
-(unify '((var x) . (var y))) => '((x . (var y)))
-(unify '((var x) . integer)) => '((x . integer))
-(unify '(integer . (var x))) => '((x . integer))
+(trace unify)
+(trace unify-one)
+      
+#|      
+(unify '(((var x) . (var y)))) => '((x . (var y)))
+(unify '(((var x) . integer))) => '((x . integer))
+(unify '((integer . (var x)))) => '((x . integer))
 (unify '((var x) . (list-of integer)) => '((x . (list-of integer)))
 (unify '((all (a) (list-of a)) . integer)) => '((a . integer))
 (unify '(integer . (all (a) (list-of a)))) => '((a . integer))
@@ -34,15 +69,15 @@ mapcar :: (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
 inference of (mapcar + (list 1 2 3 x)):
 
 (unify '((all (a b) (function (a) b)) (function (&rest number) number))
-       '((all (a b) (list-of b)) (list-of number)))
+'((all (a b) (list-of b)) (list-of number)))
 =>
 (unify '((a . (&rest number)) (b . number))
-       '((b . number)))
+'((b . number)))
 => '((a . number) (b . number))
 
 ------------------
 
-(unify '(integer . (list-of (var-type a)))) => 
+(unify '(integer . (list-of (var-type a)))) =>
 
 |#
 
@@ -92,7 +127,7 @@ Assign a unique type variable to each subexpression of e
 
 Constraints:
 
- Call the type variable assigned to x,  u(x), and call the type variable assigned to occurrence of a subexpression e', v(e').
+Call the type variable assigned to x,  u(x), and call the type variable assigned to occurrence of a subexpression e', v(e').
 
 Now we take the following constraints:
 
@@ -154,14 +189,18 @@ g1 = (function (integer g3) integer)
         (let ((binding-var (new-var binding env)))
           (add-constraint binding-var binding-value-var env)
           (push (cons (name-of binding) binding-var) let-locals))))
-    (dolist (body-form (body-of form))
-      (generate-type-constraints body-form env let-locals))))
+    ;; The type of the let is the type of the last expression in body, so return that
+    (let ((let-var nil))
+      (dolist (body-form (body-of form))
+        (setf let-var (generate-type-constraints body-form env let-locals)))
+      let-var)))
 
 (defmethod generate-type-constraints ((form lexical-variable-reference-form) env locals)
   (let ((var (new-var form env))
         (local-var (or (cdr (find (name-of form) locals :key #'car))
                        (error "Badly done"))))
-    (add-constraint var local-var env)))
+    (add-constraint var local-var env)
+    var))
 
 (defmethod generate-type-constraints ((form application-form) env locals)
   (let* ((func-type (or (compiler-info:function-type (operator-of form))
@@ -170,6 +209,7 @@ g1 = (function (integer g3) integer)
                      func-type
                      (arguments-of form)))
          (arg-vars nil))
+
     ;; Constraint the types of the arguments
     (dolist (arg-type arg-types)
       (let ((var (new-var (first arg-type) env)))
@@ -181,19 +221,25 @@ g1 = (function (integer g3) integer)
            (app-var (new-var form env))
            (func-var (new-var (operator-of form) env)))
       (add-constraint app-var return-type env)
-      (add-constraint func-var `(function ,arg-vars ,app-var) env))))
-
+      (add-constraint func-var `(function ,arg-vars ,app-var) env)
+      app-var)))
 
 (defparameter *env* (make-type-env))
 
-(generate-type-constraints (hu.dwim.walker:walk-form '(let ((x 22))
-                                                       x))
-                           *env* nil)
+(generate-type-constraints
+ (hu.dwim.walker:walk-form '(let ((x 22)) x))
+ *env* nil)
 
-(generate-type-constraints (hu.dwim.walker:walk-form '(let ((x 22))
-                                                       (+ x 45)))
-                           *env* nil)
+(generate-type-constraints
+ (hu.dwim.walker:walk-form '(let ((x 22)) (+ x 45)))
+ *env* nil)
 
 (type-env-constraints *env*)
 
 (type-env-vars *env*)
+
+(unify-one '(var x) '(var y))
+
+(subst 'y 'x (list (list 'x)))
+
+
