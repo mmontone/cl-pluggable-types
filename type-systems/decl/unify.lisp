@@ -30,7 +30,8 @@
      (cons x type))
     ((list type1 type2)
      (unless (can-unify? type1 type2)
-       (error "Can't unify: ~s with: ~s" type1 type2)))))
+       (error "Can't unify: ~s with: ~s" type1 type2))
+     nil)))
 
 ;; (defun subst (sub term)
 ;;   (trivia:match (list sub term)
@@ -237,8 +238,16 @@ g1 = (function (integer g3) integer)
     (add-constraint var local-var env)
     var))
 
+(defmethod generate-type-constraints ((form the-form) env locals)
+  (let ((var (new-var form env)))
+    (add-constraint var (declared-type-of form) env)
+    (add-constraint var (generate-type-constraints (value-of form) env locals) env)
+    var))
+
 (defparameter *type-declarations* '())
 (push '(ftype* (all (a) (function (a) a)) identity) *type-declarations*)
+(push '(ftype* (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
+        mapcar))
 
 (defun get-func-type (fname)
   ;; First try to get from the read declarations
@@ -354,3 +363,11 @@ g1 = (function (integer g3) integer)
    (hu.dwim.walker:walk-form '(identity 40))
    env nil)
   env)
+
+(multiple-value-list (infer-form ''(1 2 3)))
+
+(multiple-value-list (infer-form '(the (list-of integer) '(1 2 3))))
+
+(multiple-value-list (infer-form '(the (list-of integer) 22)))
+
+(multiple-value-list (infer-form '(the (list-of integer) '("asdf"))))
