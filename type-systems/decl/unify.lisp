@@ -2,6 +2,24 @@
 
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
+(defgeneric can-unify? (type1 type2))
+
+(defmethod can-unify? (type1 type2)
+  (cond
+    ((and (listp type1)
+          (eql (car type1) 'values))
+     (destructuring-bind (_ t1 &rest args) type1
+       (declare (ignore _ args))
+       (can-unify? t1 type2)))
+    ((and (listp type2)
+          (eql (car type2) 'values))
+     (destructuring-bind (_ t2 &rest args) type2
+       (declare (ignore _ args))
+       (can-unify? type1 t2)))
+    (t
+     (or (subtypep type1 type2)
+         (subtypep type2 type1)))))
+
 (defun unify-one (term1 term2)
   (trivia:match (list term1 term2)
     ((list (list 'var x) (list 'var y))
@@ -11,7 +29,8 @@
     ((list (list 'var x) type)
      (cons x type))
     ((list type1 type2)
-     (error "no unify: ~s ~s" type1 type2))))
+     (unless (can-unify? type1 type2)
+       (error "Can't unify: ~s with: ~s" type1 type2)))))
 
 ;; (defun subst (sub term)
 ;;   (trivia:match (list sub term)
@@ -28,15 +47,15 @@
 
 (defun subst-term (assignment term)
   (or (trivia:match (list assignment term)
-          ((list (cons varname val) (list 'var x))
-           (if (eql varname x)
-               val
-               term)))
-       (cond
-         ((listp term)
-          (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
-         (t
-          term))))
+        ((list (cons varname val) (list 'var x))
+         (if (eql varname x)
+             val
+             term)))
+      (cond
+        ((listp term)
+         (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
+        (t
+         term))))
 
 ;; A substituion is a list of assignments
 (defun apply-substitution (assignments term)
@@ -57,8 +76,8 @@
 
 (trace unify)
 (trace unify-one)
-      
-#|      
+
+#|
 (unify '(((var x) . (var y)))) => '((x . (var y)))
 (unify '(((var x) . integer))) => '((x . integer))
 (unify '((integer . (var x)))) => '((x . integer))
@@ -181,7 +200,7 @@ g1 = (function (integer g3) integer)
 (defun new-var (form env)
   (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
          (var
-          (list 'var varname)))
+           (list 'var varname)))
     (push (cons varname form) (type-env-vars env))
     var))
 
@@ -244,13 +263,15 @@ g1 = (function (integer g3) integer)
          (arg-vars nil))
 
     ;; Constraint the types of the arguments
-    (dolist (arg-type arg-types)
-      (let ((var (new-var (first arg-type) env)))
-        (add-constraint var (cdr arg-type) env)
-        (push var arg-vars)))
+    (loop for arg in (arguments-of form)
+          for arg-type in arg-types
+          do
+             (let ((arg-var (generate-type-constraints arg env locals)))
+               (add-constraint arg-var (cdr arg-type) env)
+               (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
-    (let* ((return-type (last func-type))
+    (let* ((return-type (lastcar func-type))
            (app-var (new-var form env))
            (func-var (new-var (operator-of form) env)))
       (add-constraint app-var return-type env)
@@ -300,3 +321,5 @@ g1 = (function (integer g3) integer)
 (infer-form '(let ((x 34)
                    (y 56))
               (+ x (- y x))))
+
+(multiple-value-list (infer-form '(+ 22 "lala")))
