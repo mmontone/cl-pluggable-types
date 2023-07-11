@@ -12,9 +12,16 @@
     ((list other-type (list 'values type)))
   (unify-one type other-type))
 
+;; Homogeneous lists
 (trivia-functions:define-match-method unify-types
     ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
   (unify-one elem-type-a elem-type-b))
+
+;; List fallback/coercion
+(trivia-functions:define-match-method unify-types
+    ((or (list (list 'list-of elem-type) (or 'cons 'list))
+         (list (or 'cons 'list) (list 'list-of elem-type))))
+  (unify-one (list 'list-of elem-type) '(list-of t)))
 
 (trivia-functions:define-match-method unify-types
     ((list (list 'function args-1 return-value-1)
@@ -23,11 +30,16 @@
   ;; (unify-one return-value-2 return-value-1) is different
   ;; from (unify-one return-value-1 return-value-2).
   ;; Not sure if that is correct or desired.
-  (append (unify-one return-value-2 return-value-1)
+  (append (unify-one return-value-1 return-value-2)
+          (unify-one return-value-2 return-value-1)
           (apply #'append
                  (mapcar (lambda (args)
                            (apply #'unify-one args))
-                         (mapcar #'list args-2 args-1 )))))
+                         (mapcar #'list args-2 args-1 )))
+          (apply #'append
+                 (mapcar (lambda (args)
+                           (apply #'unify-one args))
+                         (mapcar #'list args-1 args-2 )))))
 
 (trivia-functions:define-match-method unify-types
     ((list (list 'function args-1 return-value-1)
@@ -420,5 +432,13 @@ g1 = (function (integer g3) integer)
 (infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3))))
 
 (multiple-value-list (infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3)))))
+
+(infer-form '(mapcar #'print (the (list-of string) '("lala"))))
+
+(infer-form '(mapcar #'identity (the list '("lala"))))
+
+(infer-form '(mapcar #'identity '("lala")))
+
+(infer-form '(mapcar #'identity (the (list-of t) '("lala"))))
 
 

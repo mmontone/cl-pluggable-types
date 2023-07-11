@@ -35,7 +35,7 @@
             (trivia:match pattern-arg
               (,pattern (values ,@body t))
               (_ (values nil nil)))))
-     (serapeum:push-end #'match-method (getf (get ',fname :trivia-function) :methods))
+     (push #'match-method (getf (get ',fname :trivia-function) :methods))
      ',fname))
 
 (define-match-function match-test (pattern x))
