@@ -299,6 +299,13 @@ g1 = (function (integer g3) integer)
         mapcar)
       *type-declarations*)
 
+(push '(ftype* (all (a) (function (unsigned-byte (list-of a)) a))
+        nth)
+      *type-declarations*)
+
+(push '(ftype* (all (a) (function ((list-of a)) a)) first) *type-declarations*)
+(push '(ftype* (all (a) (function ((list-of a)) (list-of a))) rest) *type-declarations*)
+
 (defun get-func-type (fname)
   ;; First try to get from the read declarations
   (dolist (decl *type-declarations*)
@@ -446,4 +453,14 @@ g1 = (function (integer g3) integer)
 
 (infer-form '(mapcar #'identity (the (list-of t) '("lala"))))
 
+(infer-form '(nth 10 (the (list-of string) '("foo" "bar"))))
+(infer-form '(nth "lala" (the (list-of string) '("foo" "bar"))))
 
+(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+              (nth 1 list)))
+
+(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+              (first list)))
+
+(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+              (rest list)))
