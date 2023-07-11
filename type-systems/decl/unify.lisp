@@ -2,6 +2,9 @@
 
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
+(define-condition type-unification-error (simple-error)
+  ())
+
 (trivia-functions:define-match-function unify-types (types))
 
 (trivia-functions:define-match-method unify-types
@@ -81,7 +84,9 @@
           (unless unified?
             (unless (or (subtypep type1 type2)
                         (subtypep type2 type1))
-              (error "Can't unify: ~s with: ~s" type1 type2)))
+              (error 'type-unification-error
+                     :format-control "Can't unify: ~s with: ~s"
+                     :format-arguments (list type1 type2))))
           subst))))))
 
 (unify-one '(list-of integer) '(list-of string))
