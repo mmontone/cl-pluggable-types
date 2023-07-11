@@ -1,3 +1,11 @@
+;; TODO: it would be desirable to be able to control the order
+;; in which the match-methods patterns are evaluated.
+;; Trivia library patterns in MATCH expressions are also evaluated in
+;; the order they were defined. There's no notion of more/less specific pattern than other.
+;; So, either add an order number to define-match-method, or
+;; implement a more-specific-pattern-p function somehow.
+;; Or both.
+
 (defpackage :trivia-functions
   (:use :cl)
   (:export
@@ -27,7 +35,7 @@
             (trivia:match pattern-arg
               (,pattern (values ,@body t))
               (_ (values nil nil)))))
-     (push #'match-method (getf (get ',fname :trivia-function) :methods))
+     (serapeum:push-end #'match-method (getf (get ',fname :trivia-function) :methods))
      ',fname))
 
 (define-match-function match-test (pattern x))
