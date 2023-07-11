@@ -55,9 +55,9 @@
      (trivia:match (list term1 term2)
        ((list (list 'var x) (list 'var y))
         (list (cons x (list 'var y))))
-       ((list type (list 'var x))
-     (list (cons x type)))
        ((list (list 'var x) type)
+        (list (cons x type)))
+       ((list type (list 'var x))
         (list (cons x type)))
        ((list type1 type2)
         (multiple-value-bind (subst unified?)
@@ -327,14 +327,15 @@ g1 = (function (integer g3) integer)
     ;; Constraint the type of the application
     (let* ((return-type (lastcar func-type))
            (app-var (new-var form env))
-           (func-var (new-var (operator-of form) env)))
+           ;;(func-var (new-var (operator-of form) env))
+           )
       (add-constraint app-var return-type env)
       ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
       app-var)))
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint var (get-func-type (name-of form)) env)
+    (add-constraint var (instantiate-type (get-func-type (name-of form)) env) env)
     var))
 
 (defparameter *env* (make-type-env))
@@ -363,7 +364,7 @@ g1 = (function (integer g3) integer)
         (trivia:match type-assignment
           ((cons x type)
            (let ((expr (cdr (assoc x (type-env-vars type-env)))))
-             (push (cons expr type) type-assignments)))))
+             (push (cons expr (apply-substitution (type-env-unified type-env) type)) type-assignments)))))
       (values
        ;; type of the walked form
        (cdr (assoc walked-form type-assignments))
@@ -407,3 +408,13 @@ g1 = (function (integer g3) integer)
 (multiple-value-list (infer-form '(the (list-of integer) '("asdf"))))
 
 (infer-form '(mapcar #'+ (the (list-of number) '(1 2 3))))
+
+(infer-form '(mapcar #'+ '(1 2 3)))
+
+(infer-form '(mapcar #'+ (the (list-of string) '("lala" 2 3))))
+
+(infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3))))
+
+(multiple-value-list (infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3)))))
+
+
