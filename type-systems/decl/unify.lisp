@@ -19,11 +19,15 @@
 (trivia-functions:define-match-method unify-types
     ((list (list 'function args-1 return-value-1)
            (list 'function args-2 return-value-2)))
-  (append (unify-one return-value-1 return-value-2)
+  ;; This is dependant on order:
+  ;; (unify-one return-value-2 return-value-1) is different
+  ;; from (unify-one return-value-1 return-value-2).
+  ;; Not sure if that is correct or desired.
+  (append (unify-one return-value-2 return-value-1)
           (apply #'append
                  (mapcar (lambda (args)
                            (apply #'unify-one args))
-                         (mapcar #'list args-1 args-2)))))
+                         (mapcar #'list args-2 args-1 )))))
 
 (trivia-functions:define-match-method unify-types
     ((list (list 'function args-1 return-value-1)
