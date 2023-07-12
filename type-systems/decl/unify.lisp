@@ -336,6 +336,18 @@ g1 = (function (integer g3) integer)
 (push '(ftype* (all (a) (function ((list-of a)) a)) first) *type-declarations*)
 (push '(ftype* (all (a) (function ((list-of a)) (list-of a))) rest) *type-declarations*)
 
+(push '(ftype*
+        (or (all (a b) (function ((cons-of a b)) a))
+         (all (a) (function ((list-of a)) a)))
+        car)
+      *type-declarations*)
+
+(push '(ftype* (or
+                (all (a b) (function ((cons-of a b)) b))
+                (all (a) (function ((list-of a)) (list-of a))))
+        cdr)
+      *type-declarations*)
+
 (defun get-func-type (fname)
   ;; First try to get from the read declarations
   (dolist (decl *type-declarations*)
@@ -461,101 +473,6 @@ g1 = (function (integer g3) integer)
        type-assignments
        ;; type environment
        type-env))))
-
-(multiple-value-list (infer-form 22))
-(infer-form '(let ((x "lla")) (concatenate 'string x)))
-
-(infer-form '(let ((x "lla")) x))
-
-(infer-form '(let ((x 34)
-                   (y 56))
-              (+ x (- y x))))
-
-(multiple-value-list (infer-form '(+ 22 "lala")))
-
-;; Evaluates to integer! : uses the (all (a) (function (a) a)) type !! :-)
-(multiple-value-list (infer-form '(identity 22)))
-
-(let ((env (make-type-env)))
-  (generate-type-constraints
-   (hu.dwim.walker:walk-form '(+ 22 "lala"))
-   env nil)
-  env)
-
-(let ((env (make-type-env)))
-  (generate-type-constraints
-   (hu.dwim.walker:walk-form '(identity 40))
-   env nil)
-  env)
-
-(multiple-value-list (infer-form ''(1 2 3)))
-
-(multiple-value-list (infer-form '(the (list-of integer) '(1 2 3))))
-
-(multiple-value-list (infer-form '(the (list-of integer) 22)))
-
-(multiple-value-list (infer-form '(the (list-of integer) '("asdf"))))
-
-(infer-form '(mapcar #'+ (the (list-of number) '(1 2 3))))
-
-(infer-form '(mapcar #'+ '(1 2 3)))
-
-(infer-form '(mapcar #'+ (the (list-of string) '("lala" 2 3))))
-
-(infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3))))
-
-(multiple-value-list (infer-form '(mapcar #'identity (the (list-of string) '("lala" 2 3)))))
-
-(infer-form '(mapcar #'print (the (list-of string) '("lala"))))
-
-(infer-form '(mapcar #'identity (the list '("lala"))))
-
-(infer-form '(mapcar #'identity '("lala")))
-
-(infer-form '(mapcar #'identity (the (list-of t) '("lala"))))
-
-(infer-form '(nth 10 (the (list-of string) '("foo" "bar"))))
-(infer-form '(nth "lala" (the (list-of string) '("foo" "bar"))))
-
-(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
-              (nth 1 list)))
-
-(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
-              (first list)))
-
-(infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
-              (rest list)))
-
-(push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
-                           (or b a)))
-        car)
-      *type-declarations*)
-
-(push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
-                           (or b (list-of a))))
-        cdr)
-      *type-declarations*)
-
-(infer-form '(car (the (cons-of integer string) (cons 2 "lala"))))
-(infer-form '(cdr (the (cons-of integer string) (cons 2 "lala"))))
-
-(push '(ftype*
-        (or (all (a b) (function ((cons-of a b)) a))
-         (all (a) (function ((list-of a)) a)))
-        car)
-      *type-declarations*)
-
-(push '(ftype* (or
-                (all (a b) (function ((cons-of a b)) b))
-                (all (a) (function ((list-of a)) (list-of a))))
-        cdr)
-      *type-declarations*)
-
-(infer-form '(cdr (the (cons-of integer string) (cons 2 "lala"))))
-(infer-form '(cdr (the (list-of string) (cons 2 "lala"))))
-
-(infer-form '(car (the (cons-of integer string) (cons 2 "lala"))))
-(infer-form '(car (the (list-of string) (cons 2 "lala"))))
 
 (defun some-tree (predicate tree)
   (cond
