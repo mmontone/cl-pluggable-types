@@ -98,3 +98,13 @@
                    integer)
   (infer-is-equalp (cdr (the (list-of string) (cons 2 "lala")))
                    (list-of string)))
+
+(deftest unify-basic-tests ()
+  (is (null
+       (pluggable-types/decl::unify-one 'integer 'number))))
+
+(deftest unify-values-tests ()
+  (is (null
+       (pluggable-types/decl::unify-one '(values integer) 'integer)))
+  (signals type-unification-error
+    (pluggable-types/decl::unify-one '(values string) 'integer)))

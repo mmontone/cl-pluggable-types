@@ -5,9 +5,14 @@
         #:alexandria
         #:arrows
         #:adt)
-  (:export #:infer-form
-           #:type-unification-error
-           ;; types
-           #:list-of
-           #:cons-of
-           #:optional))
+  (:export
+   ;; inference and unification
+   #:infer-form
+   #:unify
+   #:generate-constraints
+   #:type-unification-error
+           
+   ;; types
+   #:list-of
+   #:cons-of
+   #:optional))
