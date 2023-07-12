@@ -596,3 +596,11 @@ g1 = (function (integer g3) integer)
                 (and (listp x)
                      (eql (car x) 'var)))
            '(or x z))
+
+(defun type-equalp (t1 t2)
+  (and (subtypep t1 t2)
+       (subtypep t2 t1)))
+
+(defun type-coerceablep (t1 t2)
+  (or (subtypep t1 t2)
+      (subtypep t2 t1)))
