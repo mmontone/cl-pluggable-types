@@ -10,15 +10,18 @@
   (declare (ignore a b))
   'cons)
 
+(deftype optional (a)
+  `(or ,a null))
+
 ;; Several type cases
 ;; If the list is declared monomorphic, then the parametric type can be applied.
 ;; Otherwise, typecheck with the weaker type.
 ;; Perhaps: instead of having cases, have only the parametric type, and the algorithm can unify the arguments to T if the things are not monomorphic.
-(declaim (ftype* ((all (a b)
+(declaim (ftype* (or (all (a b)
                        (function ((function (a) b)
                                   (list-of a))
                                  (list-of b)))
-                  (function ((function t t) list) list))
+                     (function ((function t t) list) list))
                  mapcar))
 
 (deftype alist ()
@@ -28,7 +31,8 @@
   (declare (ignore from to))
   'list)
 
-(declaim (ftype* ((all (a b)
+(declaim (ftype* (or
+                  (all (a b)
                        (function (a (alist-of a b)
                                     &key (:test (or function symbol))
                                     (:test-not (or function symbol))
@@ -40,12 +44,14 @@
                       (:key (or function symbol)))))
                  assoc))
 
-(declaim (ftype* ((all (a) (function ((list-of a)) a)) ;; monomorphic list
+(declaim (ftype* (or
+                  (all (a) (function ((list-of a)) a)) ;; monomorphic list
                   (all (a) (function (cons a t) a)) ;; typed cons
                   (function (list) t))
                  car))
 
-(declaim (ftype* ((all (a) (function (unsigned-byte (list-of a)) a))
+(declaim (ftype* (or
+                  (all (a) (function (unsigned-byte (list-of a)) a))
                   (function (unsigned-byte list) t))
                  nth))
 
@@ -88,3 +94,5 @@ if we strictly followed CLHS, then it should be the following:
 ;; if the symbol is the name of a function with a type, and uses that type.
 
 (declaim (ftype* (all (a) (function (a) a)) identity))
+
+

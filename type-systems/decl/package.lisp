@@ -9,4 +9,5 @@
            #:type-unification-error
            ;; types
            #:list-of
-           #:cons-of))
+           #:cons-of
+           #:optional))
