@@ -8,6 +8,20 @@
 (trivia-functions:define-match-function unify-types (types))
 
 (trivia-functions:define-match-method unify-types
+    ((list (list 'unify/or type-a type-b) type))
+  (handler-case
+      (unify-one type type-a)
+    (type-unification-error ()
+      (unify-one type type-b))))
+
+(trivia-functions:define-match-method unify-types
+    ((list type (list 'unify/or type-a type-b)))
+  (handler-case
+      (unify-one type-a type)
+    (type-unification-error ()
+      (unify-one type-b type))))
+
+(trivia-functions:define-match-method unify-types
     ((list (list 'values type) other-type))
   (unify-one type other-type))
 
@@ -25,6 +39,18 @@
     ((or (list (list 'list-of elem-type) (or 'cons 'list))
          (list (or 'cons 'list) (list 'list-of elem-type))))
   (unify-one (list 'list-of elem-type) '(list-of t)))
+
+;; Homogeneous cons
+(trivia-functions:define-match-method unify-types
+    ((list (list 'cons-of a b) (list 'cons-of c d)))
+  (append (unify-one a c)
+          (unify-one b d)))
+
+;; Cons fallback/coercion
+(trivia-functions:define-match-method unify-types
+    ((or (list (list 'cons-of a b) (or 'cons 'list))
+         (list (or 'cons 'list) (list 'cons-of a b))))
+  (unify-one (list 'cons-of a b) '(cons-of t t)))
 
 (trivia-functions:define-match-method unify-types
     ((list (list 'function args-1 return-value-1)
@@ -59,35 +85,39 @@
                  (mapcar (curry #'unify-one rest-type) args-2))))
 
 (defun unify-one (term1 term2)
-  (cond
-    ((and (listp term1)
-          (eql (car term1) 'values))
-     (destructuring-bind (_ t1 &rest args) term1
-       (declare (ignore _ args))
-       (unify-one t1 term2)))
-    ((and (listp term2)
-          (eql (car term2) 'values))
-     (destructuring-bind (_ t2 &rest args) term2
-       (declare (ignore _ args))
-       (unify-one term1 t2)))
-    (t
-     (trivia:match (list term1 term2)
-       ((list (list 'var x) (list 'var y))
-        (list (cons x (list 'var y))))
-       ((list (list 'var x) type)
-        (list (cons x type)))
-       ((list type (list 'var x))
-        (list (cons x type)))
-       ((list type1 type2)
-        (multiple-value-bind (subst unified?)
-            (unify-types (list term1 term2))
-          (unless unified?
-            (unless (or (subtypep type1 type2)
-                        (subtypep type2 type1))
-              (error 'type-unification-error
-                     :format-control "Can't unify: ~s with: ~s"
-                     :format-arguments (list type1 type2))))
-          subst))))))
+  (format t "Unify: ~a ~a " term1 term2)
+  (let ((unification
+          (cond
+            ((and (listp term1)
+                  (eql (car term1) 'values))
+             (destructuring-bind (_ t1 &rest args) term1
+               (declare (ignore _ args))
+               (unify-one t1 term2)))
+            ((and (listp term2)
+                  (eql (car term2) 'values))
+             (destructuring-bind (_ t2 &rest args) term2
+               (declare (ignore _ args))
+               (unify-one term1 t2)))
+            (t
+             (trivia:match (list term1 term2)
+               ((list (list 'var x) (list 'var y))
+                (list (cons x (list 'var y))))
+               ((list (list 'var x) type)
+                (list (cons x type)))
+               ((list type (list 'var x))
+                (list (cons x type)))
+               ((list type1 type2)
+                (multiple-value-bind (subst unified?)
+                    (unify-types (list term1 term2))
+                  (unless unified?
+                    (unless (or (subtypep type1 type2)
+                                (subtypep type2 type1))
+                      (error 'type-unification-error
+                             :format-control "Can't unify: ~s with: ~s"
+                             :format-arguments (list type1 type2))))
+                  subst)))))))
+    (format t " => ~a ~%" unification)
+    unification))
 
 (unify-one '(list-of integer) '(list-of string))
 
@@ -330,19 +360,23 @@ g1 = (function (integer g3) integer)
          (let ((type-var (new-var type-arg env)))
            (setq type-instance (subst type-var type-arg type-instance))))
        type-instance))
+    ((cons type-name args)
+     (cons type-name (mapcar (rcurry #'instantiate-type env) args)))
     (_ type)))
 
 ;; (instantiate-type '(all (a) (list-of a)) (make-type-env))
 ;; (instantiate-type '(all (a) (function (a) a)) (make-type-env))
 ;; (instantiate-type 'integer (make-type-env))
 ;; (instantiate-type '(function (integer) t) (make-type-env))
+;; (instantiate-type '(or (all (a) (function (a) boolean))
+;;                     (all (a b) (function (a b) b)))
+;;                   (make-type-env))
 
-(defmethod generate-type-constraints ((form application-form) env locals)
-  (let* ((func-type (instantiate-type (get-func-type (operator-of form)) env))
-         (arg-types (assign-types-from-function-type
-                     func-type
-                     (arguments-of form)))
-         (arg-vars nil))
+(defun generate-function-application-constraints (func-type form env locals)
+  (let ((arg-types (assign-types-from-function-type
+                    func-type
+                    (arguments-of form)))
+        (arg-vars nil))
 
     ;; Constraint the types of the arguments
     (loop for arg in (arguments-of form)
@@ -360,6 +394,18 @@ g1 = (function (integer g3) integer)
       (add-constraint app-var return-type env)
       ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
       app-var)))
+
+(defmethod generate-type-constraints ((form application-form) env locals)
+  (let ((func-type (instantiate-type (get-func-type (operator-of form)) env)))
+    (ecase (car func-type)
+      ;; OR type. Several function cases.
+      (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
+                                   (cdr func-type)))
+                (or-var (new-var form env)))
+            (add-constraint or-var `(unify/or ,@func-vars) env)))
+      ;; A single function type
+      (function (generate-function-application-constraints
+                 func-type form env locals)))))
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))
@@ -382,6 +428,17 @@ g1 = (function (integer g3) integer)
 
 (unify (type-env-constraints *env*))
 
+(defun canonize-type (type)
+  (trivia:match type
+    ((cons 'unify/or subtypes)
+     (dolist (subtype subtypes)
+       (when (not (some-tree (lambda (x)
+                               (and (listp x)
+                                    (eql (car x) 'var)))
+                             subtype))
+         (return-from canonize-type subtype))))
+    (_ type)))
+
 (defun infer-form (form)
   (let ((type-env (make-type-env))
         (walked-form (hu.dwim.walker:walk-form form)))
@@ -392,7 +449,11 @@ g1 = (function (integer g3) integer)
         (trivia:match type-assignment
           ((cons x type)
            (let ((expr (cdr (assoc x (type-env-vars type-env)))))
-             (push (cons expr (apply-substitution (type-env-unified type-env) type)) type-assignments)))))
+             (push (cons expr
+                         (arrows:->> type 
+                                     (apply-substitution (type-env-unified type-env))
+                                     (canonize-type)))
+                   type-assignments)))))
       (values
        ;; type of the walked form
        (cdr (assoc walked-form type-assignments))
@@ -464,3 +525,74 @@ g1 = (function (integer g3) integer)
 
 (infer-form '(let ((list (mapcar #'identity (the (list-of string) '("lala")))))
               (rest list)))
+
+(push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
+                           (or b a)))
+        car)
+      *type-declarations*)
+
+(push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
+                           (or b (list-of a))))
+        cdr)
+      *type-declarations*)
+
+(infer-form '(car (the (cons-of integer string) (cons 2 "lala"))))
+(infer-form '(cdr (the (cons-of integer string) (cons 2 "lala"))))
+
+(push '(ftype*
+        (or (all (a b) (function ((cons-of a b)) a))
+         (all (a) (function ((list-of a)) a)))
+        car)
+      *type-declarations*)
+
+(push '(ftype* (or
+                (all (a b) (function ((cons-of a b)) b))
+                (all (a) (function ((list-of a)) (list-of a))))
+        cdr)
+      *type-declarations*)
+
+(infer-form '(cdr (the (cons-of integer string) (cons 2 "lala"))))
+(infer-form '(cdr (the (list-of string) (cons 2 "lala"))))
+
+(infer-form '(car (the (cons-of integer string) (cons 2 "lala"))))
+(infer-form '(car (the (list-of string) (cons 2 "lala"))))
+
+(defun some-tree (predicate tree)
+  (cond
+    ((atom tree) (funcall predicate tree))
+    ((listp tree)
+     (or (funcall predicate tree)
+         (some (curry #'some-tree predicate) tree)))))
+
+(some-tree (lambda (x)
+                (and (listp x)
+                     (eql (car x) 'var)))
+              '(or (var x)))
+
+(some-tree (lambda (x)
+                (and (listp x)
+                     (eql (car x) 'var)))
+           '(or x z))
+
+(defun tree-find-if (predicate tree)
+  (cond
+    ((atom tree)
+     (when (funcall predicate tree)
+       tree))
+    ((listp tree)
+     (when (funcall predicate tree)
+       (return-from tree-find-if tree))
+     (dolist (x tree)
+       (when (tree-find-if predicate x)
+         (return-from tree-find-if x))))
+    (t nil)))   
+
+(tree-find-if (lambda (x)
+                (and (listp x)
+                     (eql (car x) 'var)))
+              '(or (var x)))
+
+(tree-find-if (lambda (x)
+                (and (listp x)
+                     (eql (car x) 'var)))
+           '(or x z))
