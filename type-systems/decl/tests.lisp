@@ -79,16 +79,6 @@
      (rest list))
    (list-of string)))
 
-;; (push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
-;;                            (or b a)))
-;;         car)
-;;       *type-declarations*)
-
-;; (push '(ftype* (all (a b) (function ((or (cons-of a b) (list-of a)))
-;;                            (or b (list-of a))))
-;;         cdr)
-;;       *type-declarations*)
-
 (deftest infer-cons-tests ()
   (infer-is-equalp (car (the (cons-of integer string) (cons 2 "lala")))
                    integer)
