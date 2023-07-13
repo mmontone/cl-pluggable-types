@@ -11,6 +11,16 @@
 ;;  (function-type list t t) ;; arg-types, return-type, info
   (or-type list))
 
+(defmethod print-object ((var var) stream)
+  (adt:match var var
+    ((var varname info)
+     (write-string "(var " stream)
+     (princ varname stream)
+     (when info
+       (write-string " " stream)
+       (prin1 info stream))
+     (write-string ")" stream))))
+
 (trivia-functions:define-match-function unify-types (types))
 
 ;; Homogeneous lists
@@ -45,12 +55,13 @@
                  (list type (or-type (%0 types))))
              (handler-case
                  (unify-one type (car types))
-               (type-unification-error ()
+               (type-unification-error (e)
                  (when (null (rest types))
                    (error 'type-unification-error
                           :format-control "Can't unify: ~a with: ~a"
                           :format-arguments (list (or-type types) type)))
-                 (unify-one (or-type (rest types)) type))))
+                 (append (cons (car types) e)
+                         (unify-one (or-type (rest types)) type)))))
             ;; multiple values unification
             ((list (cons 'values values-types-1)
                    (cons 'values values-types-2))
@@ -79,16 +90,18 @@
              ;; (unify-one return-value-2 return-value-1) is different
              ;; from (unify-one return-value-1 return-value-2).
              ;; Not sure if that is correct or desired.
-             (append (unify-one return-value-1 return-value-2)
-                     (unify-one return-value-2 return-value-1)
-                     (apply #'append
-                            (mapcar (lambda (args)
-                                      (apply #'unify-one args))
-                                    (mapcar #'list args-2 args-1 )))
-                     (apply #'append
-                            (mapcar (lambda (args)
-                                      (apply #'unify-one args))
-                                    (mapcar #'list args-1 args-2 )))))
+             (append
+              ;;(unify-one return-value-1 return-value-2)
+              (unify-one return-value-2 return-value-1)
+              #+nil(apply #'append
+                     (mapcar (lambda (args)
+                               (apply #'unify-one args))
+                             (mapcar #'list args-2 args-1 )))
+              (apply #'append
+                     (mapcar (lambda (args)
+                               (apply #'unify-one args))
+                             (mapcar #'list args-1 args-2 )))
+              ))
             ;; type variables
             ((list (var (%0 x) (%1 x-info)) (var (%0 y) (%1 y-info)))
              (list (cons x (var y y-info))))
@@ -217,16 +230,21 @@ g1 = (function (integer g3) integer)
 |#
 
 (defstruct type-env
-  (symbol-nr 0)
-  (vars nil)
-  (constraints nil)
-  (unified nil))
+  (symbol-nr 0 :type integer)
+  (vars nil :type list)
+  (constraints nil :type list)
+  (unified nil :type list)
+  (declared-ftypes nil :type list)
+  (declared-vartypes nil :type list)
+  (debugp nil :type boolean))
 
 (declaim (ftype (function (walked-form type-env) var)))
 (defun new-var (form env)
   "Create a new type variable for FORM in ENV."
   (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
-         (var (var varname form)))
+         (var (var varname
+                   (when (type-env-debugp env)
+                     form))))
     (push (cons varname form) (type-env-vars env))
     var))
 
@@ -314,7 +332,7 @@ g1 = (function (integer g3) integer)
 ;; (get-func-type 'identity (make-type-env))
 ;; (get-func-type 'concatenate (make-type-env))
 
-(declaim (ftype (function (t type-env) t)) instantiate-type)
+(declaim (ftype (function (t type-env) t) instantiate-type))
 (defun instantiate-type (type env)
   "Create an instance of TYPE in ENV.
 Type parameters are substituted by type variables."
@@ -380,22 +398,6 @@ Type parameters are substituted by type variables."
     (add-constraint var (instantiate-type (get-func-type (name-of form) env) env) env)
     var))
 
-(defparameter *env* (make-type-env))
-
-(generate-type-constraints
- (hu.dwim.walker:walk-form '(let ((x 22)) x))
- *env* nil)
-
-(generate-type-constraints
- (hu.dwim.walker:walk-form '(let ((x 22)) (+ x 45)))
- *env* nil)
-
-(type-env-constraints *env*)
-
-(type-env-vars *env*)
-
-(unify (type-env-constraints *env*))
-
 (defun canonize-type (type)
   (trivia:match type
     ((or-type (%0 subtypes))
@@ -405,7 +407,6 @@ Type parameters are substituted by type variables."
                              subtype))
          (return-from canonize-type subtype))))
     (_ type)))
-
 
 (defun infer-form (form &optional env)
   "Infer the type of FORM."
