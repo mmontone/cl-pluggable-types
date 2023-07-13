@@ -346,6 +346,33 @@ Type parameters are substituted by type variables."
 ;;                     (all (a b) (function (a b) b)))
 ;;                   (make-type-env))
 
+(declaim (ftype (function (t) t) generalize-type))
+(defun generalize-type (type)
+  "Generalize TYPE."
+  (let ((var-counter 64)
+        (vars (list)))
+    (labels ((var-for (varname)
+               (or (cdr (assoc varname vars))
+                   (let ((var (intern (princ-to-string (code-char (incf var-counter))))))
+                     (push (cons varname var) vars)
+                     var)))
+             (generalize-term (term)
+               (trivia:match term
+                 ((var (%0 varname) (%1 varinfo))
+                  (var-for varname))
+                 ((cons x xs)
+                  (cons (generalize-term x) (mapcar #'generalize-term xs)))
+                 (_ term))))
+      (let ((term-body (generalize-term type)))
+        (if vars
+            `(all ,(nreverse (mapcar #'cdr vars)) ,term-body)
+            type)))))
+
+;; (generalize-type `(list-of ,(var 'a nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'b nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'a nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'z nil)))
+                  
 (declaim (ftype (function (t walked-form type-env list) t)
                 generate-function-application-constraints))
 (defun generate-function-application-constraints (func-type form env locals)
@@ -389,6 +416,27 @@ Type parameters are substituted by type variables."
     (add-constraint var (instantiate-type (get-func-type (name-of form) env) env) env)
     var))
 
+(defmethod generate-type-constraints ((form walked-lexical-variable-reference-form) env locals)
+  (alexandria:if-let (local (assoc (name-of form) locals))
+    (let ((var (new-var form env)))
+      (add-constraint var (cdr local) env)
+      var)           
+    (error "Shouldn't happen")))
+
+(defmethod generate-type-constraints ((form lambda-function-form) env locals)
+  (let* ((var (new-var form env))
+         (arg-types (mapcar (rcurry #'new-var env) (bindings-of form)))
+         (lambda-locals (append (mapcar (lambda (arg arg-type)
+                                          (cons (name-of arg)
+                                                arg-type))
+                                        (bindings-of form)
+                                        arg-types)))
+         (body-type nil))
+    (dolist (body-form (body-of form))
+      (setq body-type (generate-type-constraints body-form env lambda-locals)))
+    (add-constraint var `(function ,arg-types ,body-type) env)
+    var))
+
 (defun canonize-type (type)
   (trivia:match type
     ((or-subst (%0 subtypes))
@@ -413,7 +461,8 @@ Type parameters are substituted by type variables."
              (push (cons expr
                          (arrows:->> type
                                      (apply-substitution (type-env-unified type-env))
-                                     (canonize-type)))
+                                     (canonize-type)
+                                     (generalize-type)))
                    type-assignments)))))
       (values
        ;; type of the walked form
