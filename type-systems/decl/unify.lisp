@@ -8,20 +8,6 @@
 (trivia-functions:define-match-function unify-types (types))
 
 (trivia-functions:define-match-method unify-types
-    ((list (list 'unify/or type-a type-b) type))
-  (handler-case
-      (unify-one type type-a)
-    (type-unification-error ()
-      (unify-one type type-b))))
-
-(trivia-functions:define-match-method unify-types
-    ((list type (list 'unify/or type-a type-b)))
-  (handler-case
-      (unify-one type-a type)
-    (type-unification-error ()
-      (unify-one type-b type))))
-
-(trivia-functions:define-match-method unify-types
     ((list (list 'values type) other-type))
   (unify-one type other-type))
 
@@ -148,9 +134,6 @@
                         (apply-substitution substitution (cdr constraint)))))
       (append substitution sub2))))
 
-(trace unify)
-(trace unify-one)
-
 #|
 (unify '(((var x) . (var y)))) => '((x . (var y)))
 (unify '(((var x) . integer))) => '((x . integer))
@@ -247,10 +230,13 @@ g1 = (function (integer g3) integer)
 |#
 
 (defstruct type-env
-  (symbol-nr 0)
-  (vars nil)
-  (constraints nil)
-  (unified nil))
+  (symbol-nr 0 :type integer)
+  (vars nil :type list)
+  (constraints nil :type list)
+  (unified nil :type list)
+  (declared-ftypes nil :type list)
+  (declared-vartypes nil :type list)
+  (debugp nil :type boolean))
 
 (defun new-var (form env)
   (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
@@ -398,22 +384,6 @@ g1 = (function (integer g3) integer)
   (let ((var (new-var form env)))
     (add-constraint var (instantiate-type (get-func-type (name-of form) env) env) env)
     var))
-
-(defparameter *env* (make-type-env))
-
-(generate-type-constraints
- (hu.dwim.walker:walk-form '(let ((x 22)) x))
- *env* nil)
-
-(generate-type-constraints
- (hu.dwim.walker:walk-form '(let ((x 22)) (+ x 45)))
- *env* nil)
-
-(type-env-constraints *env*)
-
-(type-env-vars *env*)
-
-(unify (type-env-constraints *env*))
 
 (defun canonize-type (type)
   (trivia:match type

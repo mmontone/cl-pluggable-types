@@ -50,18 +50,6 @@
   (format t "Unify: ~a ~a " term1 term2)
   (let ((unification
           (trivia:match (list term1 term2)
-            ;; OR unification
-            ((or (list (or-type (%0 types)) type)
-                 (list type (or-type (%0 types))))
-             (handler-case
-                 (unify-one type (car types))
-               (type-unification-error (e)
-                 (when (null (rest types))
-                   (error 'type-unification-error
-                          :format-control "Can't unify: ~a with: ~a"
-                          :format-arguments (list (or-type types) type)))
-                 (append (cons (car types) e)
-                         (unify-one (or-type (rest types)) type)))))
             ;; multiple values unification
             ((list (cons 'values values-types-1)
                    (cons 'values values-types-2))
@@ -127,12 +115,15 @@
 ;;(unify-one '(list-of integer) '(list-of string))
 ;;(unify-one '(list-of integer) '(list-of number))
 
+(declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
   (trivia:match (list assignment term)
     ((list (cons varname val) (var (%0 x)))
      (if (eql varname x)
          val
          term))
+    ((list assignment (or-type (%0 or-cases)))
+     (or-type (mapcar (curry 'subst-term assignment) or-cases)))
     (_
      (cond
        ((listp term)
