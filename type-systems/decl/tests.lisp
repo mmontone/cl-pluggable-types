@@ -108,3 +108,13 @@
        (pluggable-types/decl::unify-one '(values integer) 'integer)))
   (signals type-unification-error
     (pluggable-types/decl::unify-one '(values string) 'integer)))
+
+(deftest lambda-tests ()
+  (infer-is-equalp (lambda (x) x) (all (a) (function (a) a)))
+  (infer-is-equalp (lambda (x y) x) (all (a b) (function (a b) a)))
+  (infer-is-equalp (lambda (x y) (the (cons-of integer string) (cons x y)))
+                   (function (integer string) (cons-of integer string)))))
+
+(deftest type-generalization-tests ()
+  (infer-is-equalp (lambda (x) x) (all (a) (function (a) a)))
+  (infer-is-equalp (lambda (x y) x) (all (a b) (function (a b) a))))

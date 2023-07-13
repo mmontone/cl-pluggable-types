@@ -13,6 +13,7 @@
    #:type-unification-error
            
    ;; types
+   #:all
    #:list-of
    #:cons-of
    #:optional))
