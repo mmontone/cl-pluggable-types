@@ -127,7 +127,8 @@
     (_
      (cond
        ((listp term)
-        (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
+        (cons (subst-term assignment (car term))
+              (mapcar (curry 'subst-term assignment) (cdr term))))
        (t term)))))
 
 ;; A substituion is a list of assignments
@@ -305,6 +306,9 @@ g1 = (function (integer g3) integer)
         cdr)
       *type-declarations*)
 
+(push '(ftype* (all (a b) (function (a b) (cons-of a b))) cons)
+      *type-declarations*)
+
 (declaim (ftype (function (symbol type-env) t) get-func-type))
 (defun get-func-type (fname env)
   "Get the type of function with FNAME in ENV."
@@ -449,7 +453,7 @@ Type parameters are substituted by type variables."
 
 (defun infer-form (form &optional env)
   "Infer the type of FORM."
-  (let ((type-env (make-type-env))
+  (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
     (generate-type-constraints walked-form type-env nil)
     (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))

@@ -113,7 +113,9 @@
   (infer-is-equalp (lambda (x) x) (all (a) (function (a) a)))
   (infer-is-equalp (lambda (x y) x) (all (a b) (function (a b) a)))
   (infer-is-equalp (lambda (x y) (the (cons-of integer string) (cons x y)))
-                   (function (integer string) (cons-of integer string)))))
+                   (function (integer string) (cons-of integer string)))
+  (infer-is-equalp (lambda (x y) (cons (1+ x) (string-upcase y)))
+                   (function (number (or string symbol character)) (cons-of number simple-string))))
 
 (deftest type-generalization-tests ()
   (infer-is-equalp (lambda (x) x) (all (a) (function (a) a)))
