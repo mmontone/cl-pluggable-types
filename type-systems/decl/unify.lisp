@@ -119,12 +119,6 @@
     (format t " => ~a ~%" unification)
     unification))
 
-(unify-one '(list-of integer) '(list-of string))
-
-(unify-one '(list-of integer) '(list-of number))
-(can-unify? '(list-of integer) '(list-of string))
-(can-unify? '(list-of integer) 'number)
-
 (defun subst-term (assignment term)
   (trivia:match (list assignment term)
     ((list (cons varname val) (list 'var x))
@@ -193,25 +187,6 @@ inference of (mapcar + (list 1 2 3 x)):
 
 |#
 
-
-;; Problem with inferencing to or:
-(defun or-test (x)
-  (concatenate 'string x "hello"))
-
-(compiler-info:function-type 'concatenate)
-(compiler-info:function-type 'or-test)
-
-(defun or-test (x)
-  (concatenate 'string (1+ x) "hello"))
-
-(defun or-test (x)
-  (declare (type integer x))
-  (concatenate 'string x "hello"))
-
-(defun or-test (x)
-  (concatenate 'string (the integer x) "hello"))
-
-(describe #'or-test)
 
 ;; Like this??:
 ;; Unify type variables first?
@@ -348,7 +323,7 @@ g1 = (function (integer g3) integer)
         cdr)
       *type-declarations*)
 
-(defun get-func-type (fname)
+(defun get-func-type (fname env) 
   ;; First try to get from the read declarations
   (dolist (decl *type-declarations*)
     (destructuring-bind (declaration-type &rest declaration-body) decl
@@ -361,8 +336,8 @@ g1 = (function (integer g3) integer)
       ;; Or a generic function type
       '(function (&rest t) t)))
 
-;; (get-func-type 'identity)
-;; (get-func-type 'concatenate)
+;; (get-func-type 'identity (make-type-env))
+;; (get-func-type 'concatenate (make-type-env))
 
 (defun instantiate-type (type env)
   (trivia:match type
@@ -408,7 +383,7 @@ g1 = (function (integer g3) integer)
       app-var)))
 
 (defmethod generate-type-constraints ((form application-form) env locals)
-  (let ((func-type (instantiate-type (get-func-type (operator-of form)) env)))
+  (let ((func-type (instantiate-type (get-func-type (operator-of form) env) env)))
     (ecase (car func-type)
       ;; OR type. Several function cases.
       (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
@@ -421,7 +396,7 @@ g1 = (function (integer g3) integer)
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint var (instantiate-type (get-func-type (name-of form)) env) env)
+    (add-constraint var (instantiate-type (get-func-type (name-of form) env) env) env)
     var))
 
 (defparameter *env* (make-type-env))
