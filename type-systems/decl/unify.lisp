@@ -375,7 +375,7 @@ g1 = (function (integer g3) integer)
       (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
                                    (cdr func-type)))
                 (or-var (new-var form env)))
-            (add-constraint or-var `(unify/or ,@func-vars) env)))
+            (add-constraint or-var `(or-subst ,@func-vars) env)))
       ;; A single function type
       (function (generate-function-application-constraints
                  func-type form env locals)))))
@@ -387,7 +387,7 @@ g1 = (function (integer g3) integer)
 
 (defun canonize-type (type)
   (trivia:match type
-    ((cons 'unify/or subtypes)
+    ((cons 'or-subst subtypes)
      (dolist (subtype subtypes)
        (when (not (some-tree (lambda (x)
                                (and (listp x)

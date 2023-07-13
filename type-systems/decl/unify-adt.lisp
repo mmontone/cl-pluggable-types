@@ -9,7 +9,7 @@
   (var symbol t) ;; var-name, info
 ;;  (literal-type t)
 ;;  (function-type list t t) ;; arg-types, return-type, info
-  (or-type list))
+  (or-subst list))
 
 (defmethod print-object ((var var) stream)
   (adt:match var var
@@ -122,8 +122,8 @@
      (if (eql varname x)
          val
          term))
-    ((list assignment (or-type (%0 or-cases)))
-     (or-type (mapcar (curry 'subst-term assignment) or-cases)))
+    ((list assignment (or-subst (%0 or-cases)))
+     (or-subst (mapcar (curry 'subst-term assignment) or-cases)))
     (_
      (cond
        ((listp term)
@@ -379,7 +379,7 @@ Type parameters are substituted by type variables."
       (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
                                    (cdr func-type)))
                 (or-var (new-var form env)))
-            (add-constraint or-var (or-type func-vars) env)))
+            (add-constraint or-var (or-subst func-vars) env)))
       ;; A single function type
       (function (generate-function-application-constraints
                  func-type form env locals)))))
@@ -391,7 +391,7 @@ Type parameters are substituted by type variables."
 
 (defun canonize-type (type)
   (trivia:match type
-    ((or-type (%0 subtypes))
+    ((or-subst (%0 subtypes))
      (dolist (subtype subtypes)
        ;; Take the subtype that is fully unified (doesn't have variables).
        (when (not (some-tree (rcurry #'typep 'var)
