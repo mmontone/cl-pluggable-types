@@ -38,18 +38,18 @@
      (push #'match-method (getf (get ',fname :trivia-function) :methods))
      ',fname))
 
-(define-match-function match-test (pattern x))
+;; (define-match-function match-test (pattern x))
 
-(match-test 2 2)
+;; (match-test 2 2)
 
-(define-match-method match-test ("foo" x)
-  (format nil "foo!! ~a" x))
+;; (define-match-method match-test ("foo" x)
+;;   (format nil "foo!! ~a" x))
 
-(match-test 2 2)
-(match-test "foo" 22)
-(match-test '(foo "hello") 40)
+;; (match-test 2 2)
+;; (match-test "foo" 22)
+;; (match-test '(foo "hello") 40)
 
-(define-match-method match-test ((list 'foo string) x)
-  (format nil "foo: ~a. ~a" string x))
+;; (define-match-method match-test ((list 'foo string) x)
+;;   (format nil "foo: ~a. ~a" string x))
 
-(match-test '(foo "hello") 40)
+;; (match-test '(foo "hello") 40)

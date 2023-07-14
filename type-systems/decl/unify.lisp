@@ -5,15 +5,24 @@
 (define-condition type-unification-error (simple-error)
   ())
 
-(trivia-functions:define-match-function unify-types (types))
+(adt:defdata type-term
+  (var symbol t) ;; var-name, info
+;;  (literal-type t)
+;;  (function-type list t t) ;; arg-types, return-type, info
+  (or-subst list))
 
-(trivia-functions:define-match-method unify-types
-    ((list (list 'values type) other-type))
-  (unify-one type other-type))
+(defmethod print-object ((var var) stream)
+  (adt:match var var
+    ((var varname info)
+     (write-string "(var " stream)
+     (princ varname stream)
+     (when info
+       (write-string " " stream)
+       (prin1 info stream))
+     (write-string ")" stream))))
 
-(trivia-functions:define-match-method unify-types
-    ((list other-type (list 'values type)))
-  (unify-one type other-type))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (trivia-functions:define-match-function unify-types (types)))
 
 ;; Homogeneous lists
 (trivia-functions:define-match-method unify-types
@@ -38,83 +47,89 @@
          (list (or 'cons 'list) (list 'cons-of a b))))
   (unify-one (list 'cons-of a b) '(cons-of t t)))
 
-(trivia-functions:define-match-method unify-types
-    ((list (list 'function args-1 return-value-1)
-           (list 'function args-2 return-value-2)))
-  ;; This is dependant on order:
-  ;; (unify-one return-value-2 return-value-1) is different
-  ;; from (unify-one return-value-1 return-value-2).
-  ;; Not sure if that is correct or desired.
-  (append (unify-one return-value-1 return-value-2)
-          (unify-one return-value-2 return-value-1)
-          (apply #'append
-                 (mapcar (lambda (args)
-                           (apply #'unify-one args))
-                         (mapcar #'list args-2 args-1 )))
-          (apply #'append
-                 (mapcar (lambda (args)
-                           (apply #'unify-one args))
-                         (mapcar #'list args-1 args-2 )))))
-
-(trivia-functions:define-match-method unify-types
-    ((list (list 'function args-1 return-value-1)
-           (list 'function (list '&rest rest-type) return-value-2)))
-  (append (unify-one return-value-1 return-value-2)
-          (apply #'append
-                 (mapcar (curry #'unify-one rest-type) args-1))))
-
-(trivia-functions:define-match-method unify-types
-    ((list (list 'function (list '&rest rest-type) return-value-1)
-           (list 'function args-2 return-value-2)))
-  (append (unify-one return-value-1 return-value-2)
-          (apply #'append
-                 (mapcar (curry #'unify-one rest-type) args-2))))
-
 (defun unify-one (term1 term2)
   (format t "Unify: ~a ~a " term1 term2)
   (let ((unification
-          (cond
-            ((and (listp term1)
-                  (eql (car term1) 'values))
-             (destructuring-bind (_ t1 &rest args) term1
-               (declare (ignore _ args))
-               (unify-one t1 term2)))
-            ((and (listp term2)
-                  (eql (car term2) 'values))
-             (destructuring-bind (_ t2 &rest args) term2
-               (declare (ignore _ args))
-               (unify-one term1 t2)))
-            (t
-             (trivia:match (list term1 term2)
-               ((list (list 'var x) (list 'var y))
-                (list (cons x (list 'var y))))
-               ((list (list 'var x) type)
-                (list (cons x type)))
-               ((list type (list 'var x))
-                (list (cons x type)))
-               ((list type1 type2)
-                (multiple-value-bind (subst unified?)
-                    (unify-types (list term1 term2))
-                  (unless unified?
-                    (unless (or (subtypep type1 type2)
-                                (subtypep type2 type1))
-                      (error 'type-unification-error
-                             :format-control "Can't unify: ~s with: ~s"
-                             :format-arguments (list type1 type2))))
-                  subst)))))))
+          (trivia:match (list term1 term2)
+            ;; multiple values unification
+            ((list (cons 'values values-types-1)
+                   (cons 'values values-types-2))
+             (loop for val-type-1 in values-types-1
+                   for val-type-2 in values-types-2
+                   appending (unify-one val-type-1 val-type-2)))
+            ((list (cons 'values values-types)
+                   type)
+             (unify-one (first values-types) type))
+            ((list type (cons 'values values-types))
+             (unify-one type (first values-types)))
+            ;; functions with &rest in lambda-list
+            ((list (list 'function args-1 return-value-1)
+                   (list 'function (list '&rest rest-type) return-value-2))
+             (apply #'append
+                    (mapcar (curry #'unify-one rest-type) args-1)))
+            ((list (list 'function (list '&rest rest-type) return-value-1)
+                   (list 'function args-2 return-value-2))
+             (append (unify-one return-value-1 return-value-2)
+                     (apply #'append
+                            (mapcar (curry #'unify-one rest-type) args-2))))
+            ;; functions
+            ((list (list 'function args-1 return-value-1)
+                   (list 'function args-2 return-value-2))
+             ;; This is dependant on order:
+             ;; (unify-one return-value-2 return-value-1) is different
+             ;; from (unify-one return-value-1 return-value-2).
+             ;; Not sure if that is correct or desired.
+             (append
+              ;;(unify-one return-value-1 return-value-2)
+              (unify-one return-value-2 return-value-1)
+              #+nil(apply #'append
+                     (mapcar (lambda (args)
+                               (apply #'unify-one args))
+                             (mapcar #'list args-2 args-1 )))
+              (apply #'append
+                     (mapcar (lambda (args)
+                               (apply #'unify-one args))
+                             (mapcar #'list args-1 args-2 )))
+              ))
+            ;; type variables
+            ((list (var (%0 x) (%1 x-info)) (var (%0 y) (%1 y-info)))
+             (list (cons x (var y y-info))))
+            ((list (var (%0 x) (%1 info)) type)
+             (list (cons x type)))
+            ((list type (var (%0 x) (%1 info)))
+             (list (cons x type)))
+            ;; rest of types
+            ((list type1 type2)
+             (multiple-value-bind (subst unified?)
+                 (unify-types (list term1 term2))
+               (unless unified?
+                 ;; unify iff type1 and type2 can be coerced
+                 (unless (or (subtypep type1 type2)
+                             (subtypep type2 type1))
+                   (error 'type-unification-error
+                          :format-control "Can't unify: ~s with: ~s"
+                          :format-arguments (list type1 type2))))
+               subst)))))
     (format t " => ~a ~%" unification)
     unification))
 
+;;(unify-one '(list-of integer) '(list-of string))
+;;(unify-one '(list-of integer) '(list-of number))
+
+(declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
   (trivia:match (list assignment term)
-    ((list (cons varname val) (list 'var x))
+    ((list (cons varname val) (var (%0 x)))
      (if (eql varname x)
          val
          term))
+    ((list assignment (or-subst (%0 or-cases)))
+     (or-subst (mapcar (curry 'subst-term assignment) or-cases)))
     (_
      (cond
        ((listp term)
-        (cons (car term) (mapcar (curry 'subst-term assignment) (cdr term))))
+        (cons (subst-term assignment (car term))
+              (mapcar (curry 'subst-term assignment) (cdr term))))
        (t term)))))
 
 ;; A substituion is a list of assignments
@@ -135,7 +150,7 @@
       (append substitution sub2))))
 
 #|
-(unify '(((var x) . (var y)))) => '((x . (var y)))
+(unify `((,(var 'x 'x) . ,(var 'y 'y)))) => '((x . (var y)))
 (unify '(((var x) . integer))) => '((x . integer))
 (unify '((integer . (var x)))) => '((x . integer))
 (unify '(((var x) . (list-of integer)))) => '((x . (list-of integer)))
@@ -171,23 +186,6 @@ inference of (mapcar + (list 1 2 3 x)):
 |#
 
 
-;; Like this??:
-;; Unify type variables first?
-;; Then unify bindings -> inference
-;; Then unify with declared types -> type checking
-
-(defun my-func (x list)
-  (concatenate 'list (mapcar 'some-func list) x))
-
-;; some-func :: a -> b
-;; mapcar :: (c -> d) -> list-of c -> list-of d
-
-;; unify (c -> d) with (a -> b) = a is c, d is b
-;; (mapcar 'some-func list) :: (apply substitution (type-of mapcar)) =
-;; (a -> b) -> list-of a -> list-of b
-
-;; unify list-of a with sequence => list-of a (keep the more specific type)?
-
 #|
 
 Generation of type constraints for an expression e
@@ -208,11 +206,6 @@ Now we take the following constraints:
 * For each occurrence of a variable x, u(x) = v(x) .
 * For each occurrence of function application (fn e), v(fn) = (function (v(e)) v(fn e))
 * For each occurrence of a subexpression (lambda (x) e), v(lambda (x) e) = (function (v(x)) (v(e))).
-
-
-|#
-
-#|
 
 (generate '(+ 12 x))
 
@@ -238,17 +231,24 @@ g1 = (function (integer g3) integer)
   (declared-vartypes nil :type list)
   (debugp nil :type boolean))
 
+(declaim (ftype (function (walked-form type-env) var)))
 (defun new-var (form env)
+  "Create a new type variable for FORM in ENV."
   (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
-         (var
-           (list 'var varname)))
+         (var (var varname
+                   (when (type-env-debugp env)
+                     form))))
     (push (cons varname form) (type-env-vars env))
     var))
 
+(declaim (ftype (function (t t type-env) t) add-constraint))
 (defun add-constraint (x y env)
+  "Add constraint from type term X to type term Y, in ENV"
   (push (cons x y) (type-env-constraints env)))
 
-(defgeneric generate-type-constraints (form env locals))
+(declaim (ftype (function (walked-form type-env list) list) generate-type-constraints))
+(defgeneric generate-type-constraints (form env locals)
+  (:documentation "Generate type constraints for FORM in ENV under LOCALS."))
 
 (defmethod generate-type-constraints ((form constant-form) env locals)
   (let ((var (new-var form env)))
@@ -289,11 +289,9 @@ g1 = (function (integer g3) integer)
 (push '(ftype* (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
         mapcar)
       *type-declarations*)
-
 (push '(ftype* (all (a) (function (unsigned-byte (list-of a)) a))
         nth)
       *type-declarations*)
-
 (push '(ftype* (all (a) (function ((list-of a)) a)) first) *type-declarations*)
 (push '(ftype* (all (a) (function ((list-of a)) (list-of a))) rest) *type-declarations*)
 
@@ -309,7 +307,12 @@ g1 = (function (integer g3) integer)
         cdr)
       *type-declarations*)
 
-(defun get-func-type (fname env) 
+(push '(ftype* (all (a b) (function (a b) (cons-of a b))) cons)
+      *type-declarations*)
+
+(declaim (ftype (function (symbol type-env) t) get-func-type))
+(defun get-func-type (fname env)
+  "Get the type of function with FNAME in ENV."
   ;; First try to get from the read declarations
   (dolist (decl *type-declarations*)
     (destructuring-bind (declaration-type &rest declaration-body) decl
@@ -325,7 +328,10 @@ g1 = (function (integer g3) integer)
 ;; (get-func-type 'identity (make-type-env))
 ;; (get-func-type 'concatenate (make-type-env))
 
+(declaim (ftype (function (t type-env) t) instantiate-type))
 (defun instantiate-type (type env)
+  "Create an instance of TYPE in ENV.
+Type parameters are substituted by type variables."
   (trivia:match type
     ((list 'all type-args type)
      (let ((type-instance type))
@@ -345,7 +351,37 @@ g1 = (function (integer g3) integer)
 ;;                     (all (a b) (function (a b) b)))
 ;;                   (make-type-env))
 
+(declaim (ftype (function (t) t) generalize-type))
+(defun generalize-type (type)
+  "Generalize TYPE."
+  (let ((var-counter 64)
+        (vars (list)))
+    (labels ((var-for (varname)
+               (or (cdr (assoc varname vars))
+                   (let ((var (intern (princ-to-string (code-char (incf var-counter))))))
+                     (push (cons varname var) vars)
+                     var)))
+             (generalize-term (term)
+               (trivia:match term
+                 ((var (%0 varname) (%1 varinfo))
+                  (var-for varname))
+                 ((cons x xs)
+                  (cons (generalize-term x) (mapcar #'generalize-term xs)))
+                 (_ term))))
+      (let ((term-body (generalize-term type)))
+        (if vars
+            `(all ,(nreverse (mapcar #'cdr vars)) ,term-body)
+            type)))))
+
+;; (generalize-type `(list-of ,(var 'a nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'b nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'a nil)))
+;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'z nil)))
+                  
+(declaim (ftype (function (t walked-form type-env list) t)
+                generate-function-application-constraints))
 (defun generate-function-application-constraints (func-type form env locals)
+  "Generate type constraints for function application."
   (let ((arg-types (assign-types-from-function-type
                     func-type
                     (arguments-of form)))
@@ -375,7 +411,7 @@ g1 = (function (integer g3) integer)
       (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
                                    (cdr func-type)))
                 (or-var (new-var form env)))
-            (add-constraint or-var `(or-subst ,@func-vars) env)))
+            (add-constraint or-var (or-subst func-vars) env)))
       ;; A single function type
       (function (generate-function-application-constraints
                  func-type form env locals)))))
@@ -385,19 +421,40 @@ g1 = (function (integer g3) integer)
     (add-constraint var (instantiate-type (get-func-type (name-of form) env) env) env)
     var))
 
+(defmethod generate-type-constraints ((form walked-lexical-variable-reference-form) env locals)
+  (alexandria:if-let (local (assoc (name-of form) locals))
+    (let ((var (new-var form env)))
+      (add-constraint var (cdr local) env)
+      var)           
+    (error "Shouldn't happen")))
+
+(defmethod generate-type-constraints ((form lambda-function-form) env locals)
+  (let* ((var (new-var form env))
+         (arg-types (mapcar (rcurry #'new-var env) (bindings-of form)))
+         (lambda-locals (append (mapcar (lambda (arg arg-type)
+                                          (cons (name-of arg)
+                                                arg-type))
+                                        (bindings-of form)
+                                        arg-types)))
+         (body-type nil))
+    (dolist (body-form (body-of form))
+      (setq body-type (generate-type-constraints body-form env lambda-locals)))
+    (add-constraint var `(function ,arg-types ,body-type) env)
+    var))
+
 (defun canonize-type (type)
   (trivia:match type
-    ((cons 'or-subst subtypes)
+    ((or-subst (%0 subtypes))
      (dolist (subtype subtypes)
-       (when (not (some-tree (lambda (x)
-                               (and (listp x)
-                                    (eql (car x) 'var)))
+       ;; Take the subtype that is fully unified (doesn't have variables).
+       (when (not (some-tree (rcurry #'typep 'var)
                              subtype))
          (return-from canonize-type subtype))))
     (_ type)))
 
-(defun infer-form (form)
-  (let ((type-env (make-type-env))
+(defun infer-form (form &optional env)
+  "Infer the type of FORM."
+  (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
     (generate-type-constraints walked-form type-env nil)
     (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))
@@ -407,9 +464,10 @@ g1 = (function (integer g3) integer)
           ((cons x type)
            (let ((expr (cdr (assoc x (type-env-vars type-env)))))
              (push (cons expr
-                         (arrows:->> type 
+                         (arrows:->> type
                                      (apply-substitution (type-env-unified type-env))
-                                     (canonize-type)))
+                                     (canonize-type)
+                                     (generalize-type)))
                    type-assignments)))))
       (values
        ;; type of the walked form
@@ -418,51 +476,3 @@ g1 = (function (integer g3) integer)
        type-assignments
        ;; type environment
        type-env))))
-
-(defun some-tree (predicate tree)
-  (cond
-    ((atom tree) (funcall predicate tree))
-    ((listp tree)
-     (or (funcall predicate tree)
-         (some (curry #'some-tree predicate) tree)))))
-
-;; (some-tree (lambda (x)
-;;                 (and (listp x)
-;;                      (eql (car x) 'var)))
-;;               '(or (var x)))
-
-;; (some-tree (lambda (x)
-;;                 (and (listp x)
-;;                      (eql (car x) 'var)))
-;;            '(or x z))
-
-(defun tree-find-if (predicate tree)
-  (cond
-    ((atom tree)
-     (when (funcall predicate tree)
-       tree))
-    ((listp tree)
-     (when (funcall predicate tree)
-       (return-from tree-find-if tree))
-     (dolist (x tree)
-       (when (tree-find-if predicate x)
-         (return-from tree-find-if x))))
-    (t nil)))   
-
-;; (tree-find-if (lambda (x)
-;;                 (and (listp x)
-;;                      (eql (car x) 'var)))
-;;               '(or (var x)))
-
-;; (tree-find-if (lambda (x)
-;;                 (and (listp x)
-;;                      (eql (car x) 'var)))
-;;            '(or x z))
-
-(defun type-equalp (t1 t2)
-  (and (subtypep t1 t2)
-       (subtypep t2 t1)))
-
-(defun type-coerceablep (t1 t2)
-  (or (subtypep t1 t2)
-      (subtypep t2 t1)))

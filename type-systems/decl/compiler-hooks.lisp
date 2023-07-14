@@ -34,7 +34,7 @@
                (dolist (hook *before-compile-file-hooks*)
                  (apply hook input-file args))
                (prog1
-                   (apply compile-file args)
+                   (apply compile-file input-file args)
                  (dolist (hook *after-compile-file-hooks*)
-                   (apply hook args)))))
+                   (apply hook input-file args)))))
         (setf (fdefinition 'compile-file) #'compile-file-with-hooks)))))
