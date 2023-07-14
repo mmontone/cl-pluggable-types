@@ -1,5 +1,5 @@
 (fiasco:define-test-package :pluggable-types/decl/tests
-  (:use :cl :stefil :pluggable-types/decl :arrows))
+  (:use :cl :fiasco :pluggable-types/decl :arrows))
 
 (in-package :pluggable-types/decl/tests)
 
