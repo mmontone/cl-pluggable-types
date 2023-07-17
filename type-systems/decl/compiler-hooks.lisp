@@ -30,10 +30,10 @@
   (cl-package-locks:without-package-locks
     (let ((compile-file (fdefinition 'compile-file)))
       (flet ((compile-file-with-hooks (input-file &rest args &key output-file verbose
-                                                    print external-format output-truename warnings-p failure-p)
+                                                    print external-format)
                (dolist (hook *before-compile-file-hooks*)
                  (apply hook input-file args))
-               (prog1
+               (multiple-value-prog1
                    (apply compile-file input-file args)
                  (dolist (hook *after-compile-file-hooks*)
                    (apply hook input-file args)))))
