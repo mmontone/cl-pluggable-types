@@ -285,30 +285,6 @@ g1 = (function (integer g3) integer)
     var))
 
 (defparameter *type-declarations* '())
-(push '(ftype* (all (a) (function (a) a)) identity) *type-declarations*)
-(push '(ftype* (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
-        mapcar)
-      *type-declarations*)
-(push '(ftype* (all (a) (function (unsigned-byte (list-of a)) a))
-        nth)
-      *type-declarations*)
-(push '(ftype* (all (a) (function ((list-of a)) a)) first) *type-declarations*)
-(push '(ftype* (all (a) (function ((list-of a)) (list-of a))) rest) *type-declarations*)
-
-(push '(ftype*
-        (or (all (a b) (function ((cons-of a b)) a))
-         (all (a) (function ((list-of a)) a)))
-        car)
-      *type-declarations*)
-
-(push '(ftype* (or
-                (all (a b) (function ((cons-of a b)) b))
-                (all (a) (function ((list-of a)) (list-of a))))
-        cdr)
-      *type-declarations*)
-
-(push '(ftype* (all (a b) (function (a b) (cons-of a b))) cons)
-      *type-declarations*)
 
 (declaim (ftype (function (symbol type-env) t) get-func-type))
 (defun get-func-type (fname env)

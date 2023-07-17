@@ -13,17 +13,6 @@
 (deftype optional (a)
   `(or ,a null))
 
-;; Several type cases
-;; If the list is declared monomorphic, then the parametric type can be applied.
-;; Otherwise, typecheck with the weaker type.
-;; Perhaps: instead of having cases, have only the parametric type, and the algorithm can unify the arguments to T if the things are not monomorphic.
-(declaim (ftype* (or (all (a b)
-                       (function ((function (a) b)
-                                  (list-of a))
-                                 (list-of b)))
-                     (function ((function t t) list) list))
-                 mapcar))
-
 (deftype alist ()
   'list)
 
