@@ -26,3 +26,5 @@ Also polymorphic vars:
 Consider conditional reader with shadowed declaration symbols:
 #+pluggable-types
 (declaim (pluggable-types:ftype (all (a) (function (a) boolean)) my-func))
+
+The idea is to hook into Common Lisp compilation. There's COMPILE and COMPILE-FILE. COMPILER-HOOKS package replaces the original functions for others that run some hooks. The type checking would run as one of those hooks. When a type error ocurrs, a compiler warning is signaled. swank::call-with-compilation-hooks contains the implementation-specific compiler conditions that should be signaled.
