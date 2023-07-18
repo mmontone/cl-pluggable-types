@@ -37,7 +37,7 @@
                  ((list (or 'ftype* 'ftype) ftype fname)
                   (push (cons fname ftype) ftypes))
                  ((list (or 'type 'type*) vartype varname)
-                  (push (cons vartype varname) vartypes)))))))))
+                  (push (cons varname vartype) vartypes)))))))))
     (values (nreverse vartypes) (nreverse ftypes))))
 
 ;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
