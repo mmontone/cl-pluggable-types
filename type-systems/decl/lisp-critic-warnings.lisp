@@ -25,6 +25,8 @@
                     (lisp-critic::critique-definition code out names))))
             (when (not (zerop (length critique)))
               (setq critique (reformat-critique critique))
+              ;; TODO: the signaled condition does not contain a source code location.
+              ;; Would that be possible to add?
               (alexandria:simple-style-warning critique))))))))
 
 ;; (pushnew 'critique-file compiler-hooks:*after-compile-file-hooks*)
