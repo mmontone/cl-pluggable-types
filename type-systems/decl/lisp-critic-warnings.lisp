@@ -19,11 +19,11 @@
     (with-open-file (in file)
       (let ((eof (list nil)))
         (do ((code (read in nil eof) (read in nil eof)))
-            ((eq code eof) (values))
+            ((eql code eof) (values))
           (let ((critique
                   (with-output-to-string (out)
                     (lisp-critic::critique-definition code out names))))
-            (when (not (zerop (length critique)))
+            (unless (zerop (length critique)))
               (setq critique (reformat-critique critique))
               ;; TODO: the signaled condition does not contain a source code location.
               ;; Would that be possible to add?
