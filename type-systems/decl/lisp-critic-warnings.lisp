@@ -3,6 +3,9 @@
 
 (in-package :lisp-critic-warnings)
 
+(define-condition lisp-critic-style-warning (alexandria:simple-style-warning)
+  ())
+
 (defun reformat-critique (critique)
   "Remove the separators from CRITIQUE."
   (with-input-from-string (in critique)
@@ -27,6 +30,6 @@
               (setq critique (reformat-critique critique))
               ;; TODO: the signaled condition does not contain a source code location.
               ;; Would that be possible to add?
-              (alexandria:simple-style-warning critique))))))))
+              (warn 'lisp-critic-style-warning :format-control critique))))))))
 
 ;; (pushnew 'critique-file compiler-hooks:*after-compile-file-hooks*)
