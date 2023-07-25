@@ -10,11 +10,13 @@
     ((:module "decl"
       :components
       ((:file "trivia-functions")
-       (:file "compiler-hooks")
-       (:file "compiler-info")
        (:file "package")
        (:file "util")
        (:file "read")
        (:file "types")
        (:file "unify"))))))
-  :depends-on (:hu.dwim.walker :trivia :alexandria :anaphora :arrows :cl-algebraic-data-type :cl-package-locks))
+  :depends-on (:mutils
+               (:require :compiler-hooks)
+               (:require :compiler-info)
+               :hu.dwim.walker :trivia :alexandria
+               :anaphora :arrows :cl-algebraic-data-type))
