@@ -290,6 +290,9 @@ g1 = (function (integer g3) integer)
 (defun get-func-type (fname env)
   "Get the type of function with FNAME in ENV."
   ;; First try to get from the read declarations
+  (dolist (funtype *funtypes*)
+    (when (eql fname (car funtype))
+      (return-from get-func-type (cdr funtype))))
   (dolist (decl *type-declarations*)
     (destructuring-bind (declaration-type &rest declaration-body) decl
       (when (member (symbol-name declaration-type) '("FTYPE" "FTYPE*")
