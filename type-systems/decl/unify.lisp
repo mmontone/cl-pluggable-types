@@ -9,7 +9,7 @@
   (var symbol t) ;; var-name, info
 ;;  (literal-type t)
 ;;  (function-type list t t) ;; arg-types, return-type, info
-  (or-subst list))
+  (or-type list))
 
 (defmethod print-object ((var var) stream)
   (adt:match var var
@@ -29,6 +29,18 @@
     ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
   (unify-one elem-type-a elem-type-b))
 
+(trivia-functions:define-match-method unify-types
+    ((list (list 'list-of list-type)
+           (list 'cons-of cons-type-a cons-type-b)))
+  (append (unify-one list-type cons-type-a)
+          (unify-one cons-type-b `(list-of ,list-type))))
+
+(trivia-functions:define-match-method unify-types
+    ((list (list 'cons-of cons-type-a cons-type-b)
+           (list 'list-of list-type)))
+  (append (unify-one list-type cons-type-a)
+          (unify-one cons-type-b `(list-of ,list-type))))
+
 ;; List fallback/coercion
 (trivia-functions:define-match-method unify-types
     ((or (list (list 'list-of elem-type) (or 'cons 'list))
@@ -47,10 +59,31 @@
          (list (or 'cons 'list) (list 'cons-of a b))))
   (unify-one (list 'cons-of a b) '(cons-of t t)))
 
+
+
 (defun unify-one (term1 term2)
   (format t "Unify: ~a ~a " term1 term2)
   (let ((unification
           (trivia:match (list term1 term2)
+            ;; or expression
+            ((list (or-type (%0 opts)) term)
+             (handler-case
+                 (unify-one (first opts) term)
+               (type-unification-error ()
+                 (if (null (cdr opts))
+                     (error 'type-unification-error
+                          :format-control "Can't unify: ~s with: ~s"
+                          :format-arguments (list term1 term2))
+                     (unify-one (or-type (cdr opts)) term)))))
+            ((list term (or-type (%0 opts)))
+             (handler-case
+                 (unify-one term (first opts))
+               (type-unification-error ()
+                 (if (null (cdr opts))
+                     (error 'type-unification-error
+                          :format-control "Can't unify: ~s with: ~s"
+                          :format-arguments (list term1 term2))
+                     (unify-one term (or-type (cdr opts)))))))
             ;; multiple values unification
             ((list (cons 'values values-types-1)
                    (cons 'values values-types-2))
@@ -123,8 +156,8 @@
      (if (eql varname x)
          val
          term))
-    ((list assignment (or-subst (%0 or-cases)))
-     (or-subst (mapcar (curry 'subst-term assignment) or-cases)))
+    ((list assignment (or-type (%0 or-cases)))
+     (or-type (mapcar (curry 'subst-term assignment) or-cases)))
     (_
      (cond
        ((listp term)
@@ -390,7 +423,7 @@ Type parameters are substituted by type variables."
       (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
                                    (cdr func-type)))
                 (or-var (new-var form env)))
-            (add-constraint or-var (or-subst func-vars) env)))
+            (add-constraint or-var (or-type func-vars) env)))
       ;; A single function type
       (function (generate-function-application-constraints
                  func-type form env locals)))))
@@ -423,7 +456,7 @@ Type parameters are substituted by type variables."
 
 (defun canonize-type (type)
   (trivia:match type
-    ((or-subst (%0 subtypes))
+    ((or-type (%0 subtypes))
      (dolist (subtype subtypes)
        ;; Take the subtype that is fully unified (doesn't have variables).
        (when (not (some-tree (rcurry #'typep 'var)
@@ -436,7 +469,7 @@ Type parameters are substituted by type variables."
   (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
     (generate-type-constraints walked-form type-env nil)
-    (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))
+    (setf (type-env-unified type-env) (unify (reverse (type-env-constraints type-env))))
     (let ((type-assignments nil))
       (dolist (type-assignment (type-env-unified type-env))
         (trivia:match type-assignment
