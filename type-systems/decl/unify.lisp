@@ -479,6 +479,13 @@ Type parameters are substituted by type variables."
     (add-constraint var `(function ,arg-types ,body-type) env)
     var))
 
+(defmethod generate-type-constraints ((form if-form) env locals)
+  (let ((then-type (generate-type-constraints (then-of form) env locals))
+        (else-type (generate-type-constraints (else-of form) env locals))
+        (var (new-var form env)))
+    (add-constraint var `(or ,then-type ,else-type) env)
+    var))    
+
 (defun canonize-type (type)
   (trivia:match type
     ((or-type (%0 subtypes))
