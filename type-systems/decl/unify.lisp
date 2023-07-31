@@ -327,6 +327,16 @@ g1 = (function (integer g3) integer)
     (add-constraint var (declared-type-of form) env)
     var))
 
+(defmethod generate-type-constraints ((form setq-form) env locals)
+  ;; Should constrain only if variable has a DECLARED type, not inferred..
+  (let ((var (new-var form env))
+        (local-var (or (cdr (find (name-of (variable-of form)) locals :key #'car))
+                       (error "Badly done")))
+        (value-var (generate-type-constraints (value-of form) env locals)))
+    (add-constraint var local-var env)
+    (add-constraint var value-var env)
+    var))
+
 (defparameter *type-declarations* '())
 
 (declaim (ftype (function ((or symbol function) type-env) t) get-func-type))

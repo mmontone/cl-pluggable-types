@@ -106,3 +106,11 @@
 (deftest type-generalization-tests ()
   (infer-is-equalp (lambda (x) x) (all (a) (function (a) a)))
   (infer-is-equalp (lambda (x y) x) (all (a b) (function (a b) a))))
+
+(deftest setq-tests ()
+  (infer-is-equalp
+   (let ((l (the (list-of (cons-of symbol string))
+                 (list (cons :lala 22))))
+         (x (the symbol 'asdf)))
+     (setf x (car (nth 0 l))))
+   symbol))
