@@ -475,7 +475,7 @@ Type parameters are substituted by type variables."
                                         arg-types)))
          (body-type nil))
     (dolist (body-form (body-of form))
-      (setq body-type (generate-type-constraints body-form env lambda-locals)))
+      (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
     (add-constraint var `(function ,arg-types ,body-type) env)
     var))
 
