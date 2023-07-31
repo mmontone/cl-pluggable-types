@@ -98,8 +98,9 @@
             ;; functions with &rest in lambda-list
             ((list (list 'function args-1 return-value-1)
                    (list 'function (list '&rest rest-type) return-value-2))
-             (apply #'append
-                    (mapcar (curry #'unify-one rest-type) args-1)))
+             (append (unify-one return-value-1 return-value-2)
+                     (apply #'append
+                            (mapcar (curry #'unify-one rest-type) args-1))))
             ((list (list 'function (list '&rest rest-type) return-value-1)
                    (list 'function args-2 return-value-2))
              (append (unify-one return-value-1 return-value-2)
@@ -113,8 +114,8 @@
              ;; from (unify-one return-value-1 return-value-2).
              ;; Not sure if that is correct or desired.
              (append
-              ;;(unify-one return-value-1 return-value-2)
-              (unify-one return-value-2 return-value-1)
+              (unify-one return-value-1 return-value-2)
+              ;;(unify-one return-value-2 return-value-1)
               #+nil(apply #'append
                      (mapcar (lambda (args)
                                (apply #'unify-one args))
@@ -184,7 +185,7 @@
 
 #|
 (unify `((,(var 'x 'x) . ,(var 'y 'y)))) => '((x . (var y)))
-(unify '(((var x) . integer))) => '((x . integer))
+(unify `((,(var 'x 'x) . integer))) => '((x . integer))
 (unify '((integer . (var x)))) => '((x . integer))
 (unify '(((var x) . (list-of integer)))) => '((x . (list-of integer)))
 (unify '((all (a) (list-of a)) . integer)) => '((a . integer))
@@ -192,6 +193,12 @@
 
 (unify '(((var x) . integer) ((var x) . boolean))) => error
 (unify '(((var x) . integer) ((var y) . boolean) ((var x) . (var y))))
+
+(unify `((integer . t))) ;; success
+(unify `((integer . nil))) ;; success
+(unify `((integer . fixnum))) ;; success
+(unify `((fixnum . integer))) ;; success
+(unify `((integer . string))) ;; fail
 
 The steps:
 (unify '((var x) . integer) ((var x) . boolean)) =>
@@ -284,8 +291,11 @@ g1 = (function (integer g3) integer)
   (:documentation "Generate type constraints for FORM in ENV under LOCALS."))
 
 (defmethod generate-type-constraints ((form constant-form) env locals)
-  (let ((var (new-var form env)))
-    (add-constraint var (type-of (value-of form)) env)
+  (let ((var (new-var form env))
+        (type (if (functionp (value-of form))
+                  (get-func-type (value-of form) env)
+                  (type-of (value-of form)))))
+    (add-constraint var type env)
     var))
 
 (defmethod generate-type-constraints ((form let-form) env locals)
@@ -313,32 +323,37 @@ g1 = (function (integer g3) integer)
 
 (defmethod generate-type-constraints ((form the-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint var (declared-type-of form) env)
     (add-constraint var (generate-type-constraints (value-of form) env locals) env)
+    (add-constraint var (declared-type-of form) env)
     var))
 
 (defparameter *type-declarations* '())
 
-(declaim (ftype (function (symbol type-env) t) get-func-type))
-(defun get-func-type (fname env)
+(declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
+(defun get-func-type (func env)
   "Get the type of function with FNAME in ENV."
-  ;; First try to get from the read declarations
-  (dolist (funtype *funtypes*)
-    (when (eql fname (car funtype))
-      (return-from get-func-type (cdr funtype))))
-  (dolist (decl *type-declarations*)
-    (destructuring-bind (declaration-type &rest declaration-body) decl
-      (when (member (symbol-name declaration-type) '("FTYPE" "FTYPE*")
-                    :test #'string=)
-        (when (eql (lastcar declaration-body) fname)
-          (return-from get-func-type (car declaration-body))))))
-  ;; If none found, use compiler information
-  (or (compiler-info:function-type fname)
-      ;; Or a generic function type
-      '(function (&rest t) t)))
+  (let ((fname (typecase func
+                 (symbol func)
+                 (function (compiler-info:function-name func)))))
+    ;; First try to get from the read declarations
+    (dolist (funtype *funtypes*)
+      (when (eql fname (car funtype))
+        (return-from get-func-type (cdr funtype))))
+    (dolist (decl *type-declarations*)
+      (destructuring-bind (declaration-type &rest declaration-body) decl
+        (when (member (symbol-name declaration-type) '("FTYPE" "FTYPE*")
+                      :test #'string=)
+          (when (eql (lastcar declaration-body) fname)
+            (return-from get-func-type (car declaration-body))))))
+    ;; If none found, use compiler information
+    (or (compiler-info:function-type fname)
+        ;; Or a generic function type
+        '(function (&rest t) t))))
 
 ;; (get-func-type 'identity (make-type-env))
 ;; (get-func-type 'concatenate (make-type-env))
+;; (get-func-type #'identity (make-type-env))
+;; (get-func-type #'+ (make-type-env))
 
 (declaim (ftype (function (t type-env) t) instantiate-type))
 (defun instantiate-type (type env)

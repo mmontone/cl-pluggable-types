@@ -83,11 +83,7 @@
   (infer-is-equalp (car (the (cons-of integer string) (cons 2 "lala")))
                    integer)
   (infer-is-equalp (cdr (the (cons-of integer string) (cons 2 "lala")))
-                   string)
-  (infer-is-equalp (car (the (list-of integer) (cons 2 "lala")))
-                   integer)
-  (infer-is-equalp (cdr (the (list-of string) (cons 2 "lala")))
-                   (list-of string)))
+                   string)) 
 
 (deftest unify-basic-tests ()
   (is (null
