@@ -152,6 +152,10 @@
 
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
+  "Substitute ASSIGNMENT in TERM.
+ASSIGNMENT is CONS of VAR to a TERM."
+  (when (null term)
+    (return-from subst-term term))
   (trivia:match (list assignment term)
     ((list (cons varname val) (var (%0 x)))
      (if (eql varname x)
@@ -428,8 +432,10 @@ Type parameters are substituted by type variables."
     (loop for arg in (arguments-of form)
           for arg-type in arg-types
           do
-             (let ((arg-var (generate-type-constraints arg env locals)))
+             (let ((arg-var (new-var arg env))
+                   (actual-arg (generate-type-constraints arg env locals)))
                (add-constraint arg-var (cdr arg-type) env)
+               (add-constraint arg-var actual-arg env)
                (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
@@ -464,6 +470,9 @@ Type parameters are substituted by type variables."
       (add-constraint var (cdr local) env)
       var)           
     (error "Shouldn't happen")))
+
+(defmethod generate-type-constraints ((form function-definition-form) env locals)
+  ())
 
 (defmethod generate-type-constraints ((form lambda-function-form) env locals)
   (let* ((var (new-var form env))
