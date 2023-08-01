@@ -7,8 +7,8 @@
 
 (adt:defdata type-term
   (var symbol t) ;; var-name, info
-;;  (literal-type t)
-;;  (function-type list t t) ;; arg-types, return-type, info
+  ;;  (literal-type t)
+  ;;  (function-type list t t) ;; arg-types, return-type, info
   (or-type list))
 
 (defmethod print-object ((var var) stream)
@@ -72,8 +72,8 @@
                (type-unification-error ()
                  (if (null (cdr opts))
                      (error 'type-unification-error
-                          :format-control "Can't unify: ~s with: ~s"
-                          :format-arguments (list term1 term2))
+                            :format-control "Can't unify: ~s with: ~s"
+                            :format-arguments (list term1 term2))
                      (unify-one (or-type (cdr opts)) term)))))
             ((list term (or-type (%0 opts)))
              (handler-case
@@ -81,8 +81,8 @@
                (type-unification-error ()
                  (if (null (cdr opts))
                      (error 'type-unification-error
-                          :format-control "Can't unify: ~s with: ~s"
-                          :format-arguments (list term1 term2))
+                            :format-control "Can't unify: ~s with: ~s"
+                            :format-arguments (list term1 term2))
                      (unify-one term (or-type (cdr opts)))))))
             ;; multiple values unification
             ((list (cons 'values values-types-1)
@@ -117,9 +117,9 @@
               (unify-one return-value-1 return-value-2)
               ;;(unify-one return-value-2 return-value-1)
               #+nil(apply #'append
-                     (mapcar (lambda (args)
-                               (apply #'unify-one args))
-                             (mapcar #'list args-2 args-1 )))
+                          (mapcar (lambda (args)
+                                    (apply #'unify-one args))
+                                  (mapcar #'list args-2 args-1 )))
               (apply #'append
                      (mapcar (lambda (args)
                                (apply #'unify-one args))
@@ -185,7 +185,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
            (sub2
              (unify-one (apply-substitution substitution (car constraint))
                         (apply-substitution substitution (cdr constraint)))))
-      (append substitution sub2))))
+      (append sub2 substitution))))
 
 #|
 (unify `((,(var 'x 'x) . ,(var 'y 'y)))) => '((x . (var y)))
@@ -418,7 +418,7 @@ Type parameters are substituted by type variables."
 ;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'b nil)))
 ;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'a nil)))
 ;; (generalize-type `(function (,(var 'a nil) ,(var 'b nil)) ,(var 'z nil)))
-                  
+
 (declaim (ftype (function (t walked-form type-env list) t)
                 generate-function-application-constraints))
 (defun generate-function-application-constraints (func-type form env locals)
@@ -468,11 +468,17 @@ Type parameters are substituted by type variables."
   (alexandria:if-let (local (assoc (name-of form) locals))
     (let ((var (new-var form env)))
       (add-constraint var (cdr local) env)
-      var)           
+      var)
     (error "Shouldn't happen")))
 
-(defmethod generate-type-constraints ((form function-definition-form) env locals)
-  ())
+(defmethod generate-type-constraints-for-declarations (declarations bindings-vars form env locals)
+  (dolist (declaration declarations)
+    (typecase declaration
+      (type-declaration-form
+       (let ((binding-var (or (cdr (assoc (name-of declaration)
+                                          bindings-vars :key #'name-of))
+                              (error "Binding not found: ~s" (name-of declaration)))))
+         (add-constraint binding-var (declared-type-of declaration) env))))))
 
 (defmethod generate-type-constraints ((form lambda-function-form) env locals)
   (let* ((var (new-var form env))
@@ -483,6 +489,9 @@ Type parameters are substituted by type variables."
                                         (bindings-of form)
                                         arg-types)))
          (body-type nil))
+    (generate-type-constraints-for-declarations
+     (declarations-of form) (mapcar #'cons (bindings-of form) arg-types)
+     form env (append locals lambda-locals))
     (dolist (body-form (body-of form))
       (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
     (add-constraint var `(function ,arg-types ,body-type) env)
@@ -493,7 +502,7 @@ Type parameters are substituted by type variables."
         (else-type (generate-type-constraints (else-of form) env locals))
         (var (new-var form env)))
     (add-constraint var `(or ,then-type ,else-type) env)
-    var))    
+    var))
 
 (defun canonize-type (type)
   (trivia:match type
