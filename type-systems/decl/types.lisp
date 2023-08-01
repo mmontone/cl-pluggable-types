@@ -1,7 +1,5 @@
 (in-package :pluggable-types/decl)
 
-(declaim (declaration type* ftype*))
-
 (deftype list-of (a) 
   (declare (ignore a))
   'list)
@@ -19,34 +17,6 @@
 (deftype alist-of (from to)
   (declare (ignore from to))
   'list)
-
-(declaim (ftype* (or
-                  (all (a b)
-                       (function (a (alist-of a b)
-                                    &key (:test (or function symbol))
-                                    (:test-not (or function symbol))
-                                    (:key (or function symbol)))
-                                 (or b null)))
-                  (function
-                   (t list &key (:test (or function symbol))
-                      (:test-not (or function symbol))
-                      (:key (or function symbol)))))
-                 assoc))
-
-(declaim (ftype* (or
-                  (all (a) (function ((list-of a)) a)) ;; monomorphic list
-                  (all (a) (function (cons a t) a)) ;; typed cons
-                  (function (list) t))
-                 car))
-
-(declaim (ftype* (or
-                  (all (a) (function (unsigned-byte (list-of a)) a))
-                  (function (unsigned-byte list) t))
-                 nth))
-
-;; Example type:
-(deftype my-type ()
-  `(list-of (cons-of string pathname)))
 
 ;; Another interesting feature of a pluggable type system, apart from parameterized types, would be to typecheck the functions that are passed as symbols.
 
@@ -82,6 +52,38 @@ if we strictly followed CLHS, then it should be the following:
 ;; If the passed function-designator is a symbol, the type system checks that,
 ;; if the symbol is the name of a function with a type, and uses that type.
 
-(declaim (ftype* (all (a) (function (a) a)) identity))
+(declaim (ftype (function ((list-of cons) t
+                                          &key (:key function-designator)
+                                          (:test function-designator)
+                                          (:test-not function-designator))
+                          t)
+                subst-all))
 
+(defun subst-all (pairs tree &key key test test-not)
+  "Substitute all PAIRS of things in TREE.
+PAIRS is a list of CONSes, with (old . new)."
+  (if (null pairs)
+      tree
+      (let ((pair (first pairs)))
+        (apply #'subst
+               (cdr pair)
+               (car pair)
+               (subst-all (rest pairs) tree
+                          :key key :test test :test-not test-not)
+               (append
+                (when key
+                  (list :key key))
+                 (when test
+                   (list :test test))
+                 (when test-not
+                   (list :test-not test-not)))))))
 
+(deftype all (args body)
+  (let ((substs (mapcar (lambda (arg)
+                          (cons arg t))
+                        args)))
+    (subst-all substs body)))
+
+;; Example type:
+(deftype my-type ()
+  `(list-of (cons-of string pathname)))
