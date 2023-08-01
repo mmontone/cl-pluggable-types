@@ -11,9 +11,9 @@
       :components
       ((:file "trivia-functions")
        (:file "package")
+       (:file "types")
        (:file "util")
        (:file "read")
-       (:file "types")
        (:file "unify"))))))
   :depends-on (:mutils
                (:require :compiler-hooks)

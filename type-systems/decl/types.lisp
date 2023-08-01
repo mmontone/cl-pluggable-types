@@ -1,5 +1,7 @@
 (in-package :pluggable-types/decl)
 
+(declaim (declaration ftype* type*))
+
 (deftype list-of (a) 
   (declare (ignore a))
   'list)

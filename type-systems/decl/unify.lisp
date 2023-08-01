@@ -519,7 +519,7 @@ Type parameters are substituted by type variables."
   (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
     (generate-type-constraints walked-form type-env nil)
-    (setf (type-env-unified type-env) (unify (reverse (type-env-constraints type-env))))
+    (setf (type-env-unified type-env) (unify (type-env-constraints type-env)))
     (let ((type-assignments nil))
       (dolist (type-assignment (type-env-unified type-env))
         (trivia:match type-assignment

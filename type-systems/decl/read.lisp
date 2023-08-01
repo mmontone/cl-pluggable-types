@@ -50,4 +50,4 @@
 
 ;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
 
-;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
+(load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
