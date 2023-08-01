@@ -1,11 +1,9 @@
 (in-package :pluggable-types/decl)
 
-(declaim (declaration ftype* type*))
-
 (defvar *funtypes* nil)
 (defvar *vartypes* nil)
 
-(declaim (ftype* (function (pathname) (list-of t)) typecheck-file))
+(declaim (ftype (function (pathname) (list-of t)) typecheck-file))
 (defun typecheck-file (file)
   (let (defs)
     (with-open-file (in file)
