@@ -27,7 +27,7 @@
 ;; Homogeneous lists
 (trivia-functions:define-match-method unify-types
     ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
-  (unify-one elem-type-a elem-type-b))
+  (unify-one elem-type-a elem-type-b))                      
 
 (trivia-functions:define-match-method unify-types
     ((list (list 'list-of list-type)
@@ -114,8 +114,8 @@
              ;; from (unify-one return-value-1 return-value-2).
              ;; Not sure if that is correct or desired.
              (append
-              (unify-one return-value-1 return-value-2)
-              ;;(unify-one return-value-2 return-value-1)
+              ;;(unify-one return-value-1 return-value-2)
+              (unify-one return-value-2 return-value-1)
               #+nil(apply #'append
                           (mapcar (lambda (args)
                                     (apply #'unify-one args))
@@ -138,6 +138,14 @@
                  (unify-types (list term1 term2))
                (unless unified?
                  ;; unify iff type1 and type2 can be coerced
+                 ;; (when (subtypep type1 type2)
+                 ;;   (return-from unify-one (list (cons type2 type1))))
+                 ;; (when (subtypep type2 type1)
+                 ;;   (return-from unify-one (list (cons type1 type2))))
+                 ;; (error 'type-unification-error
+                 ;;          :format-control "Can't unify: ~s with: ~s"
+                 ;;          :format-arguments (list type1 type2))
+                 
                  (unless (or (subtypep type1 type2)
                              (subtypep type2 type1))
                    (error 'type-unification-error
@@ -327,8 +335,8 @@ g1 = (function (integer g3) integer)
 
 (defmethod generate-type-constraints ((form the-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint var (generate-type-constraints (value-of form) env locals) env)
     (add-constraint var (declared-type-of form) env)
+    (add-constraint var (generate-type-constraints (value-of form) env locals) env)
     var))
 
 (defmethod generate-type-constraints ((form setq-form) env locals)
