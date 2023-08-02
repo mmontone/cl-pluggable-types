@@ -28,5 +28,5 @@
                     (:key function-designator))
                  (or b null)))
   assoc)
- (ftype* (all (a b) (function (a (hash-table-of a b) &optional b) (values b boolean)))
+ (ftype* (all (a b) (function (a (hash-table-of a b) &optional b) (values (or b null) boolean)))
          gethash))
