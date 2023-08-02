@@ -96,6 +96,12 @@
             ((list type (cons 'values values-types))
              (unify-one type (first values-types)))
             ;; functions with &rest in lambda-list
+            ;; FIXME: this is not good enough. &rest arguments can appear
+            ;; in other places other than as first argument.
+            ((list (list 'function (list '&rest rest-type-1) return-type-1)
+                   (list 'function (list '&rest rest-type-2) return-type-2))
+             (append (unify-one return-type-1 return-type-2)
+                     (unify-one rest-type-1 rest-type-2)))
             ((list (list 'function args-1 return-value-1)
                    (list 'function (list '&rest rest-type) return-value-2))
              (append (unify-one return-value-1 return-value-2)
