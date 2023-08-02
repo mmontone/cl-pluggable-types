@@ -451,8 +451,16 @@ Type parameters are substituted by type variables."
            (app-var (new-var form env))
            ;;(func-var (new-var (operator-of form) env))
            )
-      (add-constraint app-var return-type env)
-      ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
+      (cond
+        ;; Treat MAKE-INSTANCE specially
+        ((and (eql (operator-of form) 'make-instance)
+              (typep (first (arguments-of form)) 'constant-form))
+         (add-constraint app-var (value-of (first (arguments-of form))) env))
+        ;; Otherwise, the type of the application is the function return type
+        (t
+         (add-constraint app-var return-type env)
+         ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
+         ))
       app-var)))
 
 (defmethod generate-type-constraints ((form application-form) env locals)
