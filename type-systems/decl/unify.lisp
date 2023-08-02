@@ -358,6 +358,24 @@ g1 = (function (integer g3) integer)
     (add-constraint var value-var env)
     var))
 
+(defmethod generate-type-constraints ((form implicit-progn-mixin) env locals)
+  (let ((var (new-var form env)))
+    (dolist (expr (body-of form))
+      (setq var (generate-type-constraints expr env locals)))
+    var))
+
+(defmethod generate-type-constraints ((form go-tag-form) env locals)
+  ;; what to do?
+  (let ((var (new-var form env)))
+    (add-constraint var 't env)
+    var))
+
+(defmethod generate-type-constraints ((form go-form) env locals)
+  ;; what to do?
+  (let ((var (new-var form env)))
+    (add-constraint var 't env)
+    var))
+
 (defparameter *type-declarations* '())
 
 (declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
