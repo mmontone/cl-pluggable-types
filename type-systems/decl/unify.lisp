@@ -2,6 +2,9 @@
 
 ;; https://www.cs.cornell.edu/courses/cs3110/2011sp/Lectures/lec26-type-inference/type-inference.htm
 
+(defvar *debug-unification* nil
+  "When enabled, unification steps are printed to *STANDARD-OUTPUT*")
+
 (define-condition type-unification-error (simple-error)
   ())
 
@@ -62,7 +65,7 @@
 
 
 (defun unify-one (term1 term2)
-  (format t "Unify: ~a ~a " term1 term2)
+  (format *debug-unification* "Unify: ~a ~a " term1 term2)
   (let ((unification
           (trivia:match (list term1 term2)
             ;; or expression
@@ -161,7 +164,7 @@
                           :format-control "Can't unify: ~s with: ~s"
                           :format-arguments (list type1 type2))))
                subst)))))
-    (format t " => ~a ~%" unification)
+    (format *debug-unification* " => ~a ~%" unification)
     unification))
 
 ;;(unify-one '(list-of integer) '(list-of string))
