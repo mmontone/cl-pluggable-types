@@ -87,7 +87,7 @@
 
 (deftest unify-basic-tests ()
   (is (null
-       (pluggable-types/decl::unify-one 'integer 'number))))
+       (pluggable-types/decl::unify-one 'number 'integer))))
 
 (deftest unify-values-tests ()
   (is (null
@@ -114,3 +114,19 @@
          (x (the symbol 'asdf)))
      (setf x (car (nth 0 l))))
    symbol))
+
+(deftest hash-table-tests ()
+  (infer-is-equalp
+   (let ((ht (the (hash-table-of symbol string)
+                  (make-hash-table))))
+     ht)
+   (hash-table-of symbol string))
+  (infer-is-equalp
+   (let ((ht (the (hash-table-of symbol string)
+                  (make-hash-table))))
+     (gethash 'lala ht))
+   (or string null))
+  (signals type-unification-error
+    (infer-form '(let ((ht (the (hash-table-of symbol string)
+                            (make-hash-table))))
+                  (gethash 22 ht)))))
