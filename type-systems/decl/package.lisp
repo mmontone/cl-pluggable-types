@@ -16,4 +16,5 @@
    #:all
    #:list-of
    #:cons-of
+   #:hash-table-of1
    #:optional))
