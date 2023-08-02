@@ -125,8 +125,12 @@
    (let ((ht (the (hash-table-of symbol string)
                   (make-hash-table))))
      (gethash 'lala ht))
-   (or string null))
+   (values (or string null) boolean))
   (signals type-unification-error
     (infer-form '(let ((ht (the (hash-table-of symbol string)
                             (make-hash-table))))
-                  (gethash 22 ht)))))
+                  (gethash 22 ht))))
+  (signals type-unification-error
+    (infer-form '(let ((ht (the (hash-table-of symbol string)
+                            (make-hash-table))))
+                  (+ (gethash 'lala ht) 22)))))

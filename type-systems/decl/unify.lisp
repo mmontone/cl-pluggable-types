@@ -91,6 +91,13 @@
                             :format-control "Can't unify: ~s with: ~s"
                             :format-arguments (list term1 term2))
                      (unify-one term (or-type (cdr opts)))))))
+            ;; type variables
+            ((list (var (%0 x) (%1 x-info)) (var (%0 y) (%1 y-info)))
+             (list (cons x (var y y-info))))
+            ((list (var (%0 x) (%1 info)) type)
+             (list (cons x type)))
+            ((list type (var (%0 x) (%1 info)))
+             (list (cons x type)))
             ;; multiple values unification
             ((list (cons 'values values-types-1)
                    (cons 'values values-types-2))
@@ -138,13 +145,15 @@
                                (apply #'unify-one args))
                              (mapcar #'list args-1 args-2 )))
               ))
-            ;; type variables
-            ((list (var (%0 x) (%1 x-info)) (var (%0 y) (%1 y-info)))
-             (list (cons x (var y y-info))))
-            ((list (var (%0 x) (%1 info)) type)
-             (list (cons x type)))
-            ((list type (var (%0 x) (%1 info)))
-             (list (cons x type)))
+            ;; or type
+            ;; FIXME: this is not good enough
+            ((list type (cons 'or types))
+             (if (= (length types) 1)
+                 (unify-one type (first types))
+                 (handler-case
+                     (unify-one type (first types))
+                   (type-unification-error ()
+                     (unify-one type (list 'or (rest types)))))))
             ;; rest of types
             ((list type1 type2)
              (multiple-value-bind (subst unified?)
@@ -549,6 +558,11 @@ Type parameters are substituted by type variables."
 
 (defun canonize-type (type)
   (trivia:match type
+    ;; Clean the (values <type> &optional) types
+    ((list 'values type '&optional)
+     type)
+    ((cons type-name args)
+     (cons type-name (mapcar #'canonize-type args)))
     ((or-type (%0 subtypes))
      (dolist (subtype subtypes)
        ;; Take the subtype that is fully unified (doesn't have variables).
