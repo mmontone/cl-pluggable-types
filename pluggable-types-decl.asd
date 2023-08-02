@@ -14,8 +14,10 @@
        (:file "types")
        (:file "util")
        (:file "read")
-       (:file "unify"))))))
+       (:file "unify")
+       (:file "compiler-hooks"))))))
   :depends-on (:mutils
+               (:require :mutils-utils)
                (:require :compiler-hooks)
                (:require :compiler-info)
                :hu.dwim.walker :trivia :alexandria

@@ -52,3 +52,15 @@
 ;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
 
 (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
+
+
+(declaim (ftype (function (pathname function-designator) t)
+                read-lisp-file-definitions))
+(defun read-lisp-file-definitions (pathname func)
+  "General purpose function for reading definitions from a lisp file."
+  (with-open-file (in pathname)
+    (let ((eof (list nil)))
+      (do ((file-position (file-position in) (file-position in))
+           (code (read in nil eof) (read in nil eof)))
+          ((eq code eof) (values))
+        (funcall func code)))))
