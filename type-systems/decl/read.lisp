@@ -45,8 +45,9 @@
 (defun load-type-declarations-from-file (pathname)
   (multiple-value-bind (vartypes funtypes)
       (read-type-declarations-from-file pathname)
-    (nconcf *vartypes* vartypes *vartypes*)
-    (nconcf *funtypes* funtypes *funtypes*)))
+    (appendf *vartypes* vartypes *vartypes*)
+    (appendf *funtypes* funtypes *funtypes*)
+    t))
 
 ;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
 
