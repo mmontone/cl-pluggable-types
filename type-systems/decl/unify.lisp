@@ -146,8 +146,11 @@
                  ;;          :format-control "Can't unify: ~s with: ~s"
                  ;;          :format-arguments (list type1 type2))
                  
-                 (unless (or (subtypep type1 type2)
-                             (subtypep type2 type1))
+                 (unless (or (eql type1 t)
+                             (eql type2 t)
+                             ;;(subtypep type1 type2)
+                             (subtypep type2 type1)
+                             )
                    (error 'type-unification-error
                           :format-control "Can't unify: ~s with: ~s"
                           :format-arguments (list type1 type2))))
