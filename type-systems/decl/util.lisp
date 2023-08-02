@@ -24,11 +24,14 @@
                  (return))
                (push (cons arg arg-type) assignments)))
             (&key
-             (destructuring-bind (key type) arg-type
-               (let ((arg-val (getf args-queue key)))
-                 (when arg-val
-                   (push (cons arg-val type) assignments)))
-               (alexandria:remove-from-plistf args-queue key)))
+             (if (eql arg-type '&allow-other-keys)
+                 (setq lambda-section '&allow-other-keys)
+                 (destructuring-bind (key type) arg-type
+                   (let ((arg-val (getf args-queue key)))
+                     (when arg-val
+                       (push (cons arg-val type) assignments)))
+                   (alexandria:remove-from-plistf args-queue key))))
+            (&allow-other-keys)
             (&rest
              ;; Consume all the passed args
              (dolist (arg args-queue)
