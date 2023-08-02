@@ -20,6 +20,10 @@
   (declare (ignore from to))
   'list)
 
+(deftype hash-table-of (key-type value-type)
+  (declare (ignore key-type value-type))
+  `hash-table)
+
 ;; Another interesting feature of a pluggable type system, apart from parameterized types, would be to typecheck the functions that are passed as symbols.
 
 (deftype function-name ()

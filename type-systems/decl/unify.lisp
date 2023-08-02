@@ -62,7 +62,11 @@
          (list (or 'cons 'list) (list 'cons-of a b))))
   (unify-one (list 'cons-of a b) '(cons-of t t)))
 
-
+(trivia-functions:define-match-method unify-types
+    ((list (list 'hash-table-of a b)
+           (list 'hash-table-of c d)))
+  (unify-one a c)
+  (unify-one b d))
 
 (defun unify-one (term1 term2)
   (format *debug-unification* "Unify: ~a ~a " term1 term2)
@@ -495,15 +499,8 @@ Type parameters are substituted by type variables."
 
 (defmethod generate-type-constraints ((form application-form) env locals)
   (let ((func-type (instantiate-type (get-func-type (operator-of form) env) env)))
-    (ecase (car func-type)
-      ;; OR type. Several function cases.
-      (or (let ((func-vars (mapcar (rcurry #'generate-function-application-constraints form env locals)
-                                   (cdr func-type)))
-                (or-var (new-var form env)))
-            (add-constraint or-var (or-type func-vars) env)))
-      ;; A single function type
-      (function (generate-function-application-constraints
-                 func-type form env locals)))))
+    (generate-function-application-constraints
+     func-type form env locals)))
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))

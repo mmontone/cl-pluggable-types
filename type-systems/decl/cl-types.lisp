@@ -27,4 +27,6 @@
                     (:test-not function-designator)
                     (:key function-designator))
                  (or b null)))
-  assoc))
+  assoc)
+ (ftype* (all (a b) (function (a (hash-table-of a b) &optional b) (values b boolean)))
+         gethash))
