@@ -129,12 +129,14 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (break)
   (adt:match constraint constraint
     ((assign var thing)
-     (when (not (fully-solved-p thing))
-       (return-from solve-constraint (values solution nil)))
      (let ((current-var (assoc var solution)))
        (cond
+         ;; Not already assigned, assign.
+         ((and (not current-var) (fully-solved-p thing))
+          ;;(break "assign ~a to ~a" var thing)
+          (values (cons (cons var thing) solution) t))
          ;; If var already assigned, check type compatibility
-         (current-var
+         ((and current-var (fully-solved-p thing))
           (let ((assigned (cdr current-var)))
             (unless (or (subtypep assigned thing)
                         (subtypep thing assigned))
@@ -145,10 +147,15 @@ ASSIGNMENT is CONS of VAR to a TERM."
                   (setf (cdr (assoc var solution)) thing)
                   (values solution t))
                 (values solution t))))
-         ;; Not already assigned, assign.
+         ;; Already assigned and right side is a variable.
+         ;; Add as solution for variable at right hand side.
+         ((and current-var (typep thing 'var))
+          (values (cons (cons thing (cdr current-var))
+                        solution)
+                  t))
+         ;; Cannot solve
          (t
-          ;;(break "assign ~a to ~a" var thing)
-          (values (cons (cons var thing) solution) t)))))
+          (values solution nil)))))
     ((subtype type1 type2)
      ;;(break)
      (when (or (not (fully-solved-p type1))
@@ -390,7 +397,7 @@ Type parameters are substituted by type variables."
      (cons type-name (mapcar (rcurry #'instantiate-type env) args)))
     (_ type)))
 
-;; (instantiate-type '(all (a) (list-of a)) (make-type-env))
+;; (instantiate-type '(pluggable-types/decl::all (a) (list-of a)) (make-type-env))
 ;; (instantiate-type '(all (a) (function (a) a)) (make-type-env))
 ;; (instantiate-type 'integer (make-type-env))
 ;; (instantiate-type '(function (integer) t) (make-type-env))
@@ -441,6 +448,8 @@ Type parameters are substituted by type variables."
                    (actual-arg (generate-type-constraints arg env locals)))
                (add-constraint (assign arg-var (cdr arg-type)) env)
                (add-constraint (subtype actual-arg arg-var) env)
+               (when (typep (cdr arg-type) 'var)
+                 (add-constraint (assign (cdr arg-type) actual-arg) env))
                (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
