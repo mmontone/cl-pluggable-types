@@ -158,7 +158,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (unless (types-compatible-p (list type1 type2))
        (error 'type-inconsistency-error
               :format-control "~a is not compatible with ~a"
-              :format-arguments (list type1 type2))))
+              :format-arguments (list type1 type2)))
+     (values solution t))
     ((and (listp type1) (listp type2)
           (eql (car type1) (car type2)))
      (let ((sol solution)
@@ -244,6 +245,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
   ;;(break)
+  (format t "~%Solving ... ~%")
   (when (null constraints)
     (return-from solve solution))
   (let ((unsolved nil)
@@ -252,13 +254,14 @@ ASSIGNMENT is CONS of VAR to a TERM."
       (format t "Constraint: ~a ~%" constraint)
       (multiple-value-bind (new-solution solved?)
           (solve-constraint (apply-solution current-solution constraint) current-solution)
+        (assert (or (not solution) new-solution))
         (setq current-solution new-solution)
         (when (not solved?)
           (push constraint unsolved))
         (format t "Solved: ~a~%" solved?)))
     (if unsolved
         (if (= (length constraints) (length unsolved))
-            current-solution
+            (break "~s" current-solution)
             (solve unsolved current-solution))
         current-solution)))
 #|
