@@ -4,7 +4,12 @@
    :pluggable-types/decl
    #:*funtypes*
    #:*vartypes*
-   #:assign-types-from-function-type))
+   #:assign-types-from-function-type
+
+   #:list-of
+   #:cons-of
+   #:all
+   #:hash-table-of))
 
 (in-package :pluggable-types/const)
 
@@ -19,7 +24,8 @@
 
 (adt:defdata constraint
   (assign t t)
-  (subtype t t))
+  (subtype t t)
+  (inst t t))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (trivia-functions:define-match-function types-compatible-p (types)))
@@ -63,6 +69,14 @@
     ((list type1 type2))
   (subtypep type1 type2))
 
+(trivia-functions:define-match-method types-compatible-p
+    ((list type1 (cons 'values type2)))
+  (types-compatible-p (list type1 type2)))
+
+(trivia-functions:define-match-method types-compatible-p
+    ((list (list 'pluggable-types/decl:hash-table-of _ _) 'hash-table))
+  t)
+
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
   "Substitute ASSIGNMENT in TERM.
@@ -80,6 +94,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
               (subst-term assignment type2)))
     ((list _ (assign (%0 var) (%1 what)))
      (assign var (subst-term assignment what)))
+    ((list _ (inst (%0 type1) (%1 type2)))
+     (inst (subst-term assignment type1)
+           (subst-term assignment type2)))
     (_
      (cond
        ((listp term)
@@ -123,9 +140,32 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (fully-solved-p '(lala))
 (fully-solved-p (list (var 'a nil)))
 
+(defun unify-types (type1 type2 solution)
+  (cond
+    ((and (typep type1 'var)
+          (fully-solved-p type2))
+     (values (cons (cons type1 type2) solution) t))
+    ((and (typep type2 'var)
+          (fully-solved-p type1))
+     (values (cons (cons type2 type1) solution) t))
+    ((and (listp type1) (listp type2))
+     (let ((sol solution)
+           (solved t))
+       (loop for t1 in (cdr type1)
+             for t2 in (cdr type2)
+             do
+                (multiple-value-bind (unif-sol unif-solved)
+                    (unify-types t1 t2 sol)
+                  (setq solved (and solved unif-solved))
+                  (setq sol unif-sol)))
+       (values sol solved)))
+    ;; not solved
+    (t (values solution nil))))
+
 (declaim (ftype (function (constraint list) (values list boolean))
                 solve-constraint))
 (defun solve-constraint (constraint solution)
+  (format t "Solve constraint: ~a~%" constraint)
   (break)
   (adt:match constraint constraint
     ((assign var thing)
@@ -165,7 +205,20 @@ ASSIGNMENT is CONS of VAR to a TERM."
        (error 'type-inconsistency-error
               :format-control "~a is not subtype of ~a"
               :format-arguments (list type1 type2)))
-     (values solution t))))     
+     (values solution t))
+    ((inst type1 type2)
+     (cond
+       ((equalp type1 type2)
+        (values solution t))
+       ((and (fully-solved-p type1)
+             (fully-solved-p type2))
+        (unless (types-compatible-p (list type2 type1))
+          (error 'type-inconsistency-error
+              :format-control "~a is not subtype of ~a"
+              :format-arguments (list type1 type2)))
+        (values solution t))
+       (t (unify-types type1 type2 solution))))
+    ))     
 
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
@@ -174,13 +227,13 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (let ((unsolved nil)
         (current-solution solution))
     (dolist (constraint constraints)
-      (format t "Constraint: ~a " constraint)
+      (format t "Constraint: ~a ~%" constraint)
       (multiple-value-bind (new-solution solved?)
           (solve-constraint (apply-solution current-solution constraint) current-solution)
         (setq current-solution new-solution)
         (when (not solved?)
           (push constraint unsolved))
-        (format t " solved: ~a~%" solved?)))
+        (format t "Solved: ~a~%" solved?)))
     (if unsolved
         (solve unsolved current-solution)
         current-solution)))
@@ -448,8 +501,7 @@ Type parameters are substituted by type variables."
                    (actual-arg (generate-type-constraints arg env locals)))
                (add-constraint (assign arg-var (cdr arg-type)) env)
                (add-constraint (subtype actual-arg arg-var) env)
-               (when (typep (cdr arg-type) 'var)
-                 (add-constraint (assign (cdr arg-type) actual-arg) env))
+               (add-constraint (inst (cdr arg-type) actual-arg) env)
                (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
@@ -465,6 +517,8 @@ Type parameters are substituted by type variables."
         ;; Otherwise, the type of the application is the function return type
         (t
          (add-constraint (assign app-var return-type) env)
+         ;;(when (typep return-type 'var)
+         ;;  (add-constraint (assign return-type app-var) env))
          ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
          ))
       app-var)))
