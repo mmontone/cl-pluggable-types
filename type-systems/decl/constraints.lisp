@@ -263,84 +263,6 @@ ASSIGNMENT is CONS of VAR to a TERM."
             current-solution
             (solve unsolved current-solution))
         current-solution)))
-#|
-(unify `((,(var 'x 'x) . ,(var 'y 'y)))) => '((x . (var y)))
-(unify `((,(var 'x 'x) . integer))) => '((x . integer))
-(unify '((integer . (var x)))) => '((x . integer))
-(unify '(((var x) . (list-of integer)))) => '((x . (list-of integer)))
-(unify '((all (a) (list-of a)) . integer)) => '((a . integer))
-(unify '(integer . (all (a) (list-of a)))) => '((a . integer))
-
-(unify '(((var x) . integer) ((var x) . boolean))) => error
-(unify '(((var x) . integer) ((var y) . boolean) ((var x) . (var y))))
-
-(unify `((integer . t))) ;; success
-(unify `((integer . nil))) ;; success
-(unify `((integer . fixnum))) ;; success
-(unify `((fixnum . integer))) ;; success
-(unify `((integer . string))) ;; fail
-
-The steps:
-(unify '((var x) . integer) ((var x) . boolean)) =>
-(unify '(integer . boolean)) => error
-
-mapcar :: (all (a b) (function ((function (a) b) (list-of a)) (list-of b)))
-
-+ :: (function (&rest number) number)
-
-(mapcar + (list 1 2 3))
-
-inference of (mapcar + (list 1 2 3 x)):
-
-(unify '((all (a b) (function (a) b)) (function (&rest number) number))
-'((all (a b) (list-of b)) (list-of number)))
-=>
-(unify '((a . (&rest number)) (b . number))
-'((b . number)))
-=> '((a . number) (b . number))
-
-------------------
-
-(unify '(integer . (list-of (var-type a)))) =>
-
-|#
-
-
-#|
-
-Generation of type constraints for an expression e
-
-In a type environment, assign a unique type variable to each variable x ocurring in e
-Assign a unique type variable to each subexpression of e
-
-Constraints:
-
-Call the type variable assigned to x,  u(x), and call the type variable assigned to occurrence of a subexpression e', v(e').
-
-Now we take the following constraints:
-
-* u(x) = v(x) for each occurrence of a variable x.
-* v(e1) = v(e2) -> v((e1 e2)) for each occurrence of a subexpression (e1 e2).
-* v(fun x -> e) = v(x) -> v(e) for each occurrence of a subexpression fun x -> e.
-
-* For each occurrence of a variable x, u(x) = v(x) .
-* For each occurrence of function application (fn e), v(fn) = (function (v(e)) v(fn e))
-* For each occurrence of a subexpression (lambda (x) e), v(lambda (x) e) = (function (v(x)) (v(e))).
-
-(generate '(+ 12 x))
-
-Env: + -> g1, x -> g2, 12 -> g3, (+ 12 x) -> g4, (g1, .., gN) type variables.
-
-g2 = g2
-g2 = integer
-g3 = g3
-g4 = integer
-g1 = (function (g2 g3) g4)
-
-Unify:
-g1 = (function (integer g3) integer)
-
-|#
 
 (defstruct type-env
   (symbol-nr 0 :type integer)
@@ -418,9 +340,11 @@ g1 = (function (integer g3) integer)
     var))
 
 (defmethod generate-type-constraints ((form the-form) env locals)
-  (let ((var (new-var form env)))
+  (let ((var (new-var form env))
+        (value-type (generate-type-constraints (value-of form) env locals)))
     (add-constraint (assign var (declared-type-of form)) env)
-    (add-constraint (subtype var (generate-type-constraints (value-of form) env locals)) env)
+    (add-constraint (subtype var value-type) env)
+    (add-constraint (inst value-type (declared-type-of form)) env)
     var))
 
 (defmethod generate-type-constraints ((form setq-form) env locals)
