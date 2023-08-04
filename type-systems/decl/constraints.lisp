@@ -198,17 +198,17 @@ ASSIGNMENT is CONS of VAR to a TERM."
          ;; If var already assigned, check type compatibility
          ((and current-var (fully-solved-p thing))
           (let ((assigned (cdr current-var)))
-            (unless (or (subtypep assigned thing)
-                        (subtypep thing assigned))
+            (unless (types-compatible-p (list assigned thing))
               (error 'type-inconsistency-error
                      :format-control "~a is not compatible with ~a"
                      :format-arguments (list assigned thing)))
             ;;(break "already assigned")
-            (if (subtypep thing assigned)
+            #+todo(if (subtypep thing assigned)
                 (progn
                   (setf (cdr (assoc var solution)) thing)
                   (values solution t))
-                (values solution t))))
+                (values solution t))
+            (values solution t)))
          ;; Already assigned and right side is a variable.
          ;; Add as solution for variable at right hand side.
          ((and current-var (typep thing 'var))
@@ -224,7 +224,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
                (not (fully-solved-p type2)))
        (return-from solve-constraint (values solution nil)))
      (unless (types-compatible-p (list type1 type2))
-       (error 'type-inconsistency-error
+       (cerror "Continue" 'type-inconsistency-error
               :format-control "~a is not subtype of ~a"
               :format-arguments (list type1 type2)))
      (values solution t))
@@ -235,7 +235,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
        ((and (fully-solved-p type1)
              (fully-solved-p type2))
         (unless (types-compatible-p (list type2 type1))
-          (error 'type-inconsistency-error
+          (cerror "Continue" 'type-inconsistency-error
               :format-control "~a is not subtype of ~a"
               :format-arguments (list type1 type2)))
         (values solution t))
@@ -244,7 +244,6 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
-  ;;(break)
   (format t "~%Solving ... ~%")
   (when (null constraints)
     (return-from solve solution))
@@ -261,7 +260,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
         (format t "Solved: ~a~%" solved?)))
     (if unsolved
         (if (= (length constraints) (length unsolved))
-            (break "~s" current-solution)
+            current-solution
             (solve unsolved current-solution))
         current-solution)))
 #|
@@ -384,6 +383,22 @@ g1 = (function (integer g3) integer)
     (dolist (binding (bindings-of form))
       (let ((binding-value-var
               (generate-type-constraints (initial-value-of binding) env locals)))
+        (let ((binding-var (new-var binding env)))
+          (add-constraint (assign binding-var binding-value-var) env)
+          (push (cons (name-of binding) binding-var) let-locals))))
+    ;; The type of the let is the type of the last expression in body, so return that
+    (let ((body-var nil)
+          (let-var (new-var form env)))
+      (dolist (body-form (body-of form))
+        (setf body-var (generate-type-constraints body-form env let-locals)))
+      (add-constraint (assign let-var body-var) env)
+      let-var)))
+
+(defmethod generate-type-constraints ((form let*-form) env locals)
+  (let ((let-locals locals))
+    (dolist (binding (bindings-of form))
+      (let ((binding-value-var
+              (generate-type-constraints (initial-value-of binding) env let-locals)))
         (let ((binding-var (new-var binding env)))
           (add-constraint (assign binding-var binding-value-var) env)
           (push (cons (name-of binding) binding-var) let-locals))))
@@ -586,7 +601,7 @@ Type parameters are substituted by type variables."
      form env (append locals lambda-locals))
     (dolist (body-form (body-of form))
       (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
-    (add-constraint var `(function ,arg-types ,body-type) env)
+    (add-constraint (assign var `(function ,arg-types ,body-type)) env)
     var))
 
 (defmethod generate-type-constraints ((form if-form) env locals)
