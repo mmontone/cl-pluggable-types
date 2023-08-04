@@ -645,3 +645,6 @@ Type parameters are substituted by type variables."
        type-assignments
        ;; type environment
        type-env))))
+
+(defun infer-form* (&rest args)
+  (first (multiple-value-list (apply #'infer-form args))))
