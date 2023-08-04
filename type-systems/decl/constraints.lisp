@@ -67,11 +67,16 @@
 
 (trivia-functions:define-match-method types-compatible-p
     ((list type1 type2))
-  (subtypep type1 type2))
+  (or (subtypep type1 type2)
+      (subtypep type2 type1)))
 
 (trivia-functions:define-match-method types-compatible-p
     ((list type1 (cons 'values type2)))
-  (types-compatible-p (list type1 type2)))
+  (types-compatible-p (list type1 (first type2))))
+
+(trivia-functions:define-match-method types-compatible-p
+    ((list (cons 'values type1) type2))
+  (types-compatible-p (list (first type1) type2)))
 
 (trivia-functions:define-match-method types-compatible-p
     ((list (list 'pluggable-types/decl:hash-table-of _ _) 'hash-table))
@@ -238,6 +243,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
+  ;;(break)
   (when (null constraints)
     (return-from solve solution))
   (let ((unsolved nil)
@@ -251,7 +257,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
           (push constraint unsolved))
         (format t "Solved: ~a~%" solved?)))
     (if unsolved
-        (solve unsolved current-solution)
+        (if (= (length constraints) (length unsolved))
+            current-solution
+            (solve unsolved current-solution))
         current-solution)))
 #|
 (unify `((,(var 'x 'x) . ,(var 'y 'y)))) => '((x . (var y)))
@@ -522,9 +530,7 @@ Type parameters are substituted by type variables."
 
     ;; Constraint the type of the application
     (let* ((return-type (lastcar func-type))
-           (app-var (new-var form env))
-           ;;(func-var (new-var (operator-of form) env))
-           )
+           (app-var (new-var form env)))
       (cond
         ;; Treat MAKE-INSTANCE specially
         ((and (eql (operator-of form) 'make-instance)
@@ -533,9 +539,7 @@ Type parameters are substituted by type variables."
         ;; Otherwise, the type of the application is the function return type
         (t
          (add-constraint (assign app-var return-type) env)
-         ;;(when (typep return-type 'var)
-         ;;  (add-constraint (assign return-type app-var) env))
-         ;;(add-constraint func-var `(function ,arg-vars ,app-var) env)
+         (add-constraint (inst return-type app-var) env)         
          ))
       app-var)))
 
