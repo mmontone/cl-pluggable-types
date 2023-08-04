@@ -22,163 +22,46 @@
   (subtype t t))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (trivia-functions:define-match-function unify-types (types)))
+  (trivia-functions:define-match-function types-compatible-p (types)))
 
 ;; Homogeneous lists
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
-  (unify-one elem-type-a elem-type-b))                      
+  (types-compatible-p (list elem-type-a elem-type-b)))
 
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((list (list 'list-of list-type)
            (list 'cons-of cons-type-a cons-type-b)))
-  (append (unify-one list-type cons-type-a)
-          (unify-one cons-type-b `(list-of ,list-type))))
+  (and (types-compatible-p (list list-type cons-type-a))
+       (types-compatible-p (list cons-type-b `(list-of ,list-type)))))
 
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((list (list 'cons-of cons-type-a cons-type-b)
            (list 'list-of list-type)))
-  (append (unify-one list-type cons-type-a)
-          (unify-one cons-type-b `(list-of ,list-type))))
-
-;; List fallback/coercion
-(trivia-functions:define-match-method unify-types
-    ((or (list (list 'list-of elem-type) (or 'cons 'list))
-         (list (or 'cons 'list) (list 'list-of elem-type))))
-  (unify-one (list 'list-of elem-type) '(list-of t)))
+  (and (types-compatible-p (list list-type cons-type-a))
+       (types-compatible-p (list cons-type-b `(list-of ,list-type)))))
 
 ;; Homogeneous cons
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((list (list 'cons-of a b) (list 'cons-of c d)))
-  (append (unify-one a c)
-          (unify-one b d)))
+  (and (types-compatible-p (list a c))
+       (types-compatible-p (list b d))))
 
 ;; Cons fallback/coercion
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((or (list (list 'cons-of a b) (or 'cons 'list))
          (list (or 'cons 'list) (list 'cons-of a b))))
-  (unify-one (list 'cons-of a b) '(cons-of t t)))
+  (types-compatible-p (list (list 'cons-of a b) '(cons-of t t))))
 
-(trivia-functions:define-match-method unify-types
+(trivia-functions:define-match-method types-compatible-p
     ((list (list 'hash-table-of a b)
            (list 'hash-table-of c d)))
-  (unify-one a c)
-  (unify-one b d))
+  (and (types-compatible-p (list a c))
+       (types-compatible-p (list b d))))
 
-(defun unify-one (term1 term2)
-  (format *debug-unification* "Unify: ~a ~a " term1 term2)
-  (let ((unification
-          (trivia:match (list term1 term2)
-            ;; or expression
-            ((list (or-type (%0 opts)) term)
-             (handler-case
-                 (unify-one (first opts) term)
-               (type-unification-error ()
-                 (if (null (cdr opts))
-                     (error 'type-unification-error
-                            :format-control "Can't unify: ~s with: ~s"
-                            :format-arguments (list term1 term2))
-                     (unify-one (or-type (cdr opts)) term)))))
-            ((list term (or-type (%0 opts)))
-             (handler-case
-                 (unify-one term (first opts))
-               (type-unification-error ()
-                 (if (null (cdr opts))
-                     (error 'type-unification-error
-                            :format-control "Can't unify: ~s with: ~s"
-                            :format-arguments (list term1 term2))
-                     (unify-one term (or-type (cdr opts)))))))
-            ;; type variables
-            ((list (var (%0 x) (%1 x-info)) (var (%0 y) (%1 y-info)))
-             (list (cons x (var y y-info))))
-            ((list (var (%0 x) (%1 info)) type)
-             (list (cons x type)))
-            ((list type (var (%0 x) (%1 info)))
-             (list (cons x type)))
-            ;; multiple values unification
-            ((list (cons 'values values-types-1)
-                   (cons 'values values-types-2))
-             (loop for val-type-1 in values-types-1
-                   for val-type-2 in values-types-2
-                   appending (unify-one val-type-1 val-type-2)))
-            ((list (cons 'values values-types)
-                   type)
-             (unify-one (first values-types) type))
-            ((list type (cons 'values values-types))
-             (unify-one type (first values-types)))
-            ;; functions with &rest in lambda-list
-            ;; FIXME: this is not good enough. &rest arguments can appear
-            ;; in other places other than as first argument.
-            ((list (list 'function (list '&rest rest-type-1) return-type-1)
-                   (list 'function (list '&rest rest-type-2) return-type-2))
-             (append (unify-one return-type-1 return-type-2)
-                     (unify-one rest-type-1 rest-type-2)))
-            ((list (list 'function args-1 return-value-1)
-                   (list 'function (list '&rest rest-type) return-value-2))
-             (append (unify-one return-value-1 return-value-2)
-                     (apply #'append
-                            (mapcar (curry #'unify-one rest-type) args-1))))
-            ((list (list 'function (list '&rest rest-type) return-value-1)
-                   (list 'function args-2 return-value-2))
-             (append (unify-one return-value-1 return-value-2)
-                     (apply #'append
-                            (mapcar (curry #'unify-one rest-type) args-2))))
-            ;; functions
-            ((list (list 'function args-1 return-value-1)
-                   (list 'function args-2 return-value-2))
-             ;; This is dependant on order:
-             ;; (unify-one return-value-2 return-value-1) is different
-             ;; from (unify-one return-value-1 return-value-2).
-             ;; Not sure if that is correct or desired.
-             (append
-              ;;(unify-one return-value-1 return-value-2)
-              (unify-one return-value-2 return-value-1)
-              #+nil(apply #'append
-                          (mapcar (lambda (args)
-                                    (apply #'unify-one args))
-                                  (mapcar #'list args-2 args-1 )))
-              (apply #'append
-                     (mapcar (lambda (args)
-                               (apply #'unify-one args))
-                             (mapcar #'list args-1 args-2 )))
-              ))
-            ;; or type
-            ;; FIXME: this is not good enough
-            ((list type (cons 'or types))
-             (if (= (length types) 1)
-                 (unify-one type (first types))
-                 (handler-case
-                     (unify-one type (first types))
-                   (type-unification-error ()
-                     (unify-one type (list 'or (rest types)))))))
-            ;; rest of types
-            ((list type1 type2)
-             (multiple-value-bind (subst unified?)
-                 (unify-types (list term1 term2))
-               (unless unified?
-                 ;; unify iff type1 and type2 can be coerced
-                 ;; (when (subtypep type1 type2)
-                 ;;   (return-from unify-one (list (cons type2 type1))))
-                 ;; (when (subtypep type2 type1)
-                 ;;   (return-from unify-one (list (cons type1 type2))))
-                 ;; (error 'type-unification-error
-                 ;;          :format-control "Can't unify: ~s with: ~s"
-                 ;;          :format-arguments (list type1 type2))
-                 
-                 (unless (or (eql type1 t)
-                             (eql type2 t)
-                             ;;(subtypep type1 type2)
-                             (subtypep type2 type1)
-                             )
-                   (error 'type-unification-error
-                          :format-control "Can't unify: ~s with: ~s"
-                          :format-arguments (list type1 type2))))
-               subst)))))
-    (format *debug-unification* " => ~a ~%" unification)
-    unification))
-
-;;(unify-one '(list-of integer) '(list-of string))
-;;(unify-one '(list-of integer) '(list-of number))
+(trivia-functions:define-match-method types-compatible-p
+    ((list type1 type2))
+  (subtypep type1 type2))
 
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
@@ -243,6 +126,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (declaim (ftype (function (constraint list) (values list boolean))
                 solve-constraint))
 (defun solve-constraint (constraint solution)
+  (break)
   (adt:match constraint constraint
     ((assign var thing)
      (when (not (fully-solved-p thing))
@@ -270,7 +154,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (when (or (not (fully-solved-p type1))
                (not (fully-solved-p type2)))
        (return-from solve-constraint (values solution nil)))
-     (unless (subtypep type1 type2)
+     (unless (types-compatible-p (list type1 type2))
        (error 'type-inconsistency-error
               :format-control "~a is not subtype of ~a"
               :format-arguments (list type1 type2)))
@@ -496,7 +380,7 @@ g1 = (function (integer g3) integer)
   "Create an instance of TYPE in ENV.
 Type parameters are substituted by type variables."
   (trivia:match type
-    ((list 'all type-args type)
+    ((list 'pluggable-types/decl:all type-args type)
      (let ((type-instance type))
        (dolist (type-arg type-args)
          (let ((type-var (new-var type-arg env)))
