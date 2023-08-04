@@ -148,7 +148,14 @@ ASSIGNMENT is CONS of VAR to a TERM."
     ((and (typep type2 'var)
           (fully-solved-p type1))
      (values (cons (cons type2 type1) solution) t))
-    ((and (listp type1) (listp type2))
+    ((and (fully-solved-p type1)
+          (fully-solved-p type2))
+     (unless (types-compatible-p (list type1 type2))
+       (error 'type-inconsistency-error
+              :format-control "~a is not compatible with ~a"
+              :format-arguments (list type1 type2))))
+    ((and (listp type1) (listp type2)
+          (eql (car type1) (car type2)))
      (let ((sol solution)
            (solved t))
        (loop for t1 in (cdr type1)
@@ -160,13 +167,20 @@ ASSIGNMENT is CONS of VAR to a TERM."
                   (setq sol unif-sol)))
        (values sol solved)))
     ;; not solved
-    (t (values solution nil))))
+    (t
+     (trivia:match (list type1 type2)
+       ((list (list 'cons-of a b) (list 'list-of c))
+        (unify-types (list 'cons-of a b)
+                     (list 'cons-of c (list 'list-of c))
+                     solution))
+       (_
+        (values solution nil))))))
 
 (declaim (ftype (function (constraint list) (values list boolean))
                 solve-constraint))
 (defun solve-constraint (constraint solution)
   (format t "Solve constraint: ~a~%" constraint)
-  (break)
+  ;;(break)
   (adt:match constraint constraint
     ((assign var thing)
      (let ((current-var (assoc var solution)))
@@ -180,7 +194,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
           (let ((assigned (cdr current-var)))
             (unless (or (subtypep assigned thing)
                         (subtypep thing assigned))
-              (error 'type-inconsistency-error))
+              (error 'type-inconsistency-error
+                     :format-control "~a is not compatible with ~a"
+                     :format-arguments (list assigned thing)))
             ;;(break "already assigned")
             (if (subtypep thing assigned)
                 (progn
