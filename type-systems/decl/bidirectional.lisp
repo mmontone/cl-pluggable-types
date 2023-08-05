@@ -184,8 +184,9 @@ PAIRS is a list of CONSes, with (old . new)."
                    (list :test-not test-not)))))))
 
 (defmethod bid-check-type ((form application-form) type env locals)
-  (ensure-types-compatible (infer-type form env locals) type)
-  type)
+  (let ((inferred-type (infer-type form env locals)))
+    (ensure-types-compatible inferred-type type)
+    (more-informative-type inferred-type type)))
 
 (defun extract-var-assignments (assignment)
   (destructuring-bind (t1 . t2) assignment
