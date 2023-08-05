@@ -1,5 +1,15 @@
 (fiasco:define-test-package :pluggable-types/bid/tests
-  (:use :cl :fiasco :pluggable-types/bid :arrows))
+  (:use :cl :fiasco :pluggable-types/bid :arrows)
+  (:import-from
+   :pluggable-types/decl
+   #:*funtypes*
+   #:*vartypes*
+   #:assign-types-from-function-type
+
+   #:list-of
+   #:cons-of
+   #:all
+   #:hash-table-of))
 
 (in-package :pluggable-types/bid/tests)
 
@@ -34,7 +44,7 @@
 (deftest check-the-form-test ()
   (is (equalp (check-form '(the (list-of integer) '(1 2 3)))
               '(list-of integer)))
-  (signals type-unification-error (check-form '(the (list-of integer) 22)))
+  (signals type-checking-error (check-form '(the (list-of integer) 22)))
   (is (equalp (check-form '(the (list-of integer) '("asdf")))
               '(list-of integer))))
 

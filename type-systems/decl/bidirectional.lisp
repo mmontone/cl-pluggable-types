@@ -161,7 +161,8 @@ Type parameters are substituted by type variables."
       (type-of (value-of form))))
 
 (defmethod infer-type ((form the-form) env locals)
-  (bid-check-type form (declared-type-of form) env locals))
+  (break)
+  (bid-check-type (value-of form) (declared-type-of form) env locals))
 
 (defmethod bid-check-type ((form constant-form) type env locals)
   (let ((itype (infer-type form env locals)))
