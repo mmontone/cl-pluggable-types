@@ -1,6 +1,7 @@
 (in-package :pluggable-types/decl)
 
 (defun assign-types-from-function-type (function-type args)
+  "Assign types to the ARGS being passed to the function."
   (assert (eql (first function-type) 'function))
   (destructuring-bind (_ arg-types return-type) function-type
     (declare (ignore _ return-type))
@@ -205,3 +206,25 @@
 (defun type-coerceablep (t1 t2)
   (or (subtypep t1 t2)
       (subtypep t2 t1)))
+
+(defun tree-find (what tree)
+  (cond
+    ((eql what tree)
+     t)
+    ((atom tree)
+     nil)
+    ((consp tree)
+     (or (tree-find what (car tree))
+         (tree-find what (cdr tree))))
+    (t nil)))
+
+(tree-find 'a '(b (a)))
+
+(defun tree-find-if (predicate tree)
+  (cond
+    ((atom tree)
+     (funcall predicate tree))
+    ((consp tree)
+     (or (tree-find-if predicate (car tree))
+         (tree-find-if predicate (cdr tree))))))
+
