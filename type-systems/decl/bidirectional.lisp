@@ -49,6 +49,10 @@
      (types-compatible-p (car vt1) type))
     ((list type (cons 'values vt2))
      (types-compatible-p type (car vt2)))
+    ((list (list 'function f1args f1ret)
+           (list 'function f2args f2ret))
+     ;; TODO: parse lambda lists and check args
+     (types-compatible-p f2ret f1ret))
     (_
      (or
       (some (rcurry #'typep 'var) (list type1 type2))
@@ -148,6 +152,16 @@ Type parameters are substituted by type variables."
     ((or (typep type2 'unknown)
          (typep type2 'var))
      type1)
+    ((and (pluggable-types/decl::tree-find-if (rcurry #'typep 'var)
+                                              type1)
+          (not (pluggable-types/decl::tree-find-if (rcurry #'typep 'var)
+                                                   type2)))
+     type2)
+    ((and (pluggable-types/decl::tree-find-if (rcurry #'typep 'unknown)
+                                              type2)
+          (not (pluggable-types/decl::tree-find-if (rcurry #'typep 'unknown)
+                                                   type1)))
+     type1)
     (t (if (types-compatible-p type1 type2)
            type1
            type2))))
@@ -159,6 +173,9 @@ Type parameters are substituted by type variables."
   (if (functionp (value-of form))
       (get-func-type (value-of form) env)
       (type-of (value-of form))))
+
+(defmethod infer-type ((form free-function-object-form) env locals)
+  (instantiate-type (get-func-type (name-of form) env) env))
 
 (defmethod infer-type ((form the-form) env locals)
   (break)
@@ -257,16 +274,20 @@ PAIRS is a list of CONSes, with (old . new)."
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
 (defmethod infer-type ((form free-application-form) env locals)
-  (let* ((func-type (instantiate-type (get-func-type (operator-of form) env) env))
-         (arg-types (assign-types-from-function-type func-type (arguments-of form)))
+  (let* ((args (arguments-of form))
+         (func-type (instantiate-type (get-func-type (operator-of form) env) env))
+         (formal-arg-types (assign-types-from-function-type func-type args))
          (arg-type-assignments ()))
     ;; Check the types of the arguments
-    (loop for arg in (arguments-of form)
-          for arg-type in arg-types
+    (loop for arg in args
+          for arg-type in formal-arg-types
           do
+             ;; The formal arg-type can have type vars.
+             ;; We have to instantiate the vars from the type of the actual given arguments.
              (let ((checked-arg-type (bid-check-type arg (cdr arg-type) env locals)))
                (push (cons (cdr arg-type) checked-arg-type)
                      arg-type-assignments)))
+    (break "~s" arg-type-assignments)
     (let ((var-assignments (extract-var-assignments* arg-type-assignments)))
       (subst-all var-assignments (lastcar func-type)))))
 
