@@ -4,6 +4,9 @@
 
 (defpackage :pluggable-types/bid
   (:use :cl :alexandria :hu.dwim.walker)
+  (:export #:check-form
+           #:type-checking-error
+           #:types-compatible-p)
   (:import-from
    :pluggable-types/decl
    #:*funtypes*
@@ -38,10 +41,19 @@
          :format-arguments args))
 
 (defun types-compatible-p (type1 type2)
-  (or
-   (some (rcurry #'typep 'var) (list type1 type2))
-   (some (rcurry #'typep 'unknown) (list type1 type2))
-   (subtypep type1 type2)))
+  (trivia:match (list type1 type2)
+    ((list (cons 'values vt1) (cons 'values vt2))
+     (every (curry #'apply #'types-compatible-p)
+            (mapcar #'cons vt1 vt2)))
+    ((list (cons 'values vt1) type)
+     (types-compatible-p (car vt1) type))
+    ((list type (cons 'values vt2))
+     (types-compatible-p type (car vt2)))
+    (_
+     (or
+      (some (rcurry #'typep 'var) (list type1 type2))
+      (some (rcurry #'typep 'unknown) (list type1 type2))
+      (subtypep type1 type2)))))
 
 (defun ensure-types-compatible (type1 type2)
   (unless (types-compatible-p type1 type2)
@@ -136,7 +148,7 @@ Type parameters are substituted by type variables."
     ((or (typep type2 'unknown)
          (typep type2 'var))
      type1)
-    (t (if (subtypep type1 type2)
+    (t (if (types-compatible-p type1 type2)
            type1
            type2))))
 
@@ -163,6 +175,44 @@ Type parameters are substituted by type variables."
    (declared-type-of form))
   (ensure-types-compatible (declared-type-of form) type)
   (declared-type-of form))
+
+(defmethod infer-type ((form walked-lexical-variable-reference-form) env locals)
+  (alexandria:if-let (local (assoc (name-of form) locals))
+    (cdr local)
+    (error "Shouldn't happen")))
+
+(defmethod bid-check-type ((form walked-form) type env locals)
+  (let ((inferred-type (infer-type form env locals)))
+    (ensure-types-compatible inferred-type type)
+    (more-informative-type type inferred-type)))
+
+(defmethod bid-check-type ((form let-form) type env locals)
+  (let ((let-locals locals))
+    (dolist (binding (bindings-of form))
+      (let ((binding-type
+              (infer-type (initial-value-of binding) env locals)))
+        (push (cons (name-of binding) binding-type) let-locals)))
+    ;; The type of the let is the type of the last expression in body, so return that
+    (let ((body-type (unknown nil)))
+      (dolist (body-form (body-of form))
+        (setf body-type (infer-type body-form env let-locals)))
+      body-type)))
+
+(defmethod generate-type-constraints ((form let*-form) env locals)
+  (let ((let-locals locals))
+    (dolist (binding (bindings-of form))
+      (let ((binding-value-var
+              (generate-type-constraints (initial-value-of binding) env let-locals)))
+        (let ((binding-var (new-var binding env)))
+          (add-constraint (assign binding-var binding-value-var) env)
+          (push (cons (name-of binding) binding-var) let-locals))))
+    ;; The type of the let is the type of the last expression in body, so return that
+    (let ((body-var nil)
+          (let-var (new-var form env)))
+      (dolist (body-form (body-of form))
+        (setf body-var (generate-type-constraints body-form env let-locals)))
+      (add-constraint (assign let-var body-var) env)
+      let-var)))
 
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
@@ -219,7 +269,7 @@ PAIRS is a list of CONSes, with (old . new)."
     (let ((var-assignments (extract-var-assignments* arg-type-assignments)))
       (subst-all var-assignments (lastcar func-type)))))
 
-(defun bid-check (form &optional env)
+(defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
         (form (if (typep form 'walked-form)
                   form
