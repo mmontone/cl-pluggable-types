@@ -37,9 +37,13 @@
          :format-control message
          :format-arguments args))
 
-(defun type-equivalent-p (type1 type2)
+(defun types-compatible-p (type1 type2)
   (or (some (rcurry #'typep 'unknown) (list type1 type2))
       (subtypep type1 type2)))
+
+(defun ensure-types-compatible (type1 type2)
+  (unless (types-compatible-p type1 type2)
+    (bid-type-error "Types not compatible: ~a and ~a" type1 type2)))
 
 (declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
 (defun get-func-type (func env)
@@ -72,19 +76,28 @@
            type2))))
 
 (defgeneric infer-type (form env locals))
+(defgeneric bid-check-type (form type env locals))
 
 (defmethod infer-type ((form constant-form) env locals)
   (if (functionp (value-of form))
       (get-func-type (value-of form) env)
       (type-of (value-of form))))
 
-(defgeneric bid-check-type (form type env locals))
+(defmethod infer-type ((form the-form) env locals)
+  (bid-check-type form (declared-type-of form) env locals))
 
 (defmethod bid-check-type ((form constant-form) type env locals)
   (let ((itype (infer-type form env locals)))
-    (if (type-equivalent-p itype type)
+    (if (types-compatible-p itype type)
         (more-informative-type type itype)
-        (bid-type-error "Types equivalent: ~a and ~a" type itype))))
+        (bid-type-error "Types compatible: ~a and ~a" type itype))))
+
+(defmethod bid-check-type ((form the-form) type env locals)
+  (ensure-types-compatible
+   (infer-type (value-of form) env locals)
+   (declared-type-of form))
+  (ensure-types-compatible (declared-type-of form) type)
+  (declared-type-of form))
 
 (defun bid-check (form &optional env)
   (let ((env (or env (make-type-env)))
