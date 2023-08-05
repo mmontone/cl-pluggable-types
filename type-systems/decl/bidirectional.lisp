@@ -287,7 +287,7 @@ PAIRS is a list of CONSes, with (old . new)."
              (let ((checked-arg-type (bid-check-type arg (cdr arg-type) env locals)))
                (push (cons (cdr arg-type) checked-arg-type)
                      arg-type-assignments)))
-    (break "~s" arg-type-assignments)
+    ;;(break "~s" arg-type-assignments)
     (let ((var-assignments (extract-var-assignments* arg-type-assignments)))
       (subst-all var-assignments (lastcar func-type)))))
 
