@@ -297,3 +297,81 @@ PAIRS is a list of CONSes, with (old . new)."
                   form
                   (walk-form form))))
     (bid-check-type form (unknown form) env nil)))
+
+(define-condition type-unification-error (simple-error)
+  ())
+
+(defun type-unification-error (args &optional message)
+  (error 'type-unification-error
+         :format-control (or message "Can't unify: ~{~a~^, ~}")
+         :format-arguments (list args)))
+
+(defun unify-one (term1 term2)
+  (when (eql term1 term2)
+    (return-from unify-one nil))
+  (trivia:match (list term1 term2)
+    ((list (var (%0 vname) (%1 vinfo))
+           t2)
+     (list (cons term1 term2)))
+    ((list t1 (var (%0 vname) (%1 vinfo)))
+     (list (cons term2 term1)))
+    ((list (cons t1 ts1)
+           (cons t2 ts2))
+     (apply #'append
+            (unify-one t1 t2)
+            (mapcar #'unify-one ts1 ts2)))
+    (_
+     (unless (types-compatible-p term1 term2)
+       (type-unification-error (list term1 term2))))))
+
+(unify-one 'integer 'integer)
+(unify-one (var 'x nil) 'integer)
+(unify-one 'integer (var 'x nil))
+(unify-one (list 'lala (var 'x nil))
+           (list 'lala (var 'y nil)))
+(unify-one (list 'integer)
+           (list (var 'x nil)))
+
+(declaim (ftype (function (cons t) t) subst-term))
+(defun subst-term (assignment term)
+  "Substitute ASSIGNMENT in TERM.
+ASSIGNMENT is CONS of VAR to a TERM."
+  (when (null term)
+    (return-from subst-term term))
+  (trivia:match (list assignment term)
+    ((list (cons (var (%0 x)) val)
+           (var (%0 y)))
+     (if (eql x y)
+         val
+         term))
+    (_
+     (cond
+       ((listp term)
+        (cons (subst-term assignment (car term))
+              (mapcar (curry 'subst-term assignment) (cdr term))))
+       (t term)))))
+
+;; A substituion is a list of assignments
+(defun apply-substitution (assignments term)
+  (let ((new-term term))
+    (dolist (assignment assignments)
+      (setq new-term (subst-term assignment new-term)))
+    new-term))
+
+(declaim (ftype (function ((list-of cons)) list) unify))
+(defun unify (constraints)
+  "Unify CONSTRAINTS."
+  (when constraints
+    (let* ((substitution (unify (rest constraints)))
+           (constraint (first constraints))
+           (sub2
+             (unify-one (apply-substitution substitution (car constraint))
+                        (apply-substitution substitution (cdr constraint)))))
+      (append sub2 substitution))))
+
+(let* ((t1 `(function (integer) string))
+       (t2 `(function (,(var 'x nil)) ,(var 'y nil)))
+       (subst (unify (list (cons t1 t2)))))
+  (print subst)
+  (print (apply-substitution subst t1))
+  (print (apply-substitution subst t2)))
