@@ -313,7 +313,7 @@ PAIRS is a list of CONSes, with (old . new)."
                   (walk-form form))))
     (bid-check-type form (unknown form) env nil)))
 
-(define-condition type-unification-error (simple-error)
+(define-condition type-unification-error (type-checking-error)
   ())
 
 (defun type-unification-error (args &optional message)
@@ -330,6 +330,12 @@ PAIRS is a list of CONSes, with (old . new)."
      (list (cons term1 term2)))
     ((list t1 (var (%0 vname) (%1 vinfo)))
      (list (cons term2 term1)))
+    ((list (list '&rest t1) (list '&rest t2))
+     (unify-one t1 t2))
+    ((list (list '&rest rtype) _)
+     (unify-one rtype term2))
+    ((list _ (list '&rest rtype))
+     (unify (mapcar (rcurry #'cons rtype) term1)))
     ((list (cons t1 ts1)
            (cons t2 ts2))
      (unify (mapcar #'cons term1 term2)))
@@ -390,10 +396,3 @@ ASSIGNMENT is CONS of VAR to a TERM."
              (unify-one (apply-substitution substitution (car constraint))
                         (apply-substitution substitution (cdr constraint)))))
       (append sub2 substitution))))
-
-(let* ((t1 `(function (integer) string))
-       (t2 `(function (,(var 'x nil)) ,(var 'y nil)))
-       (subst (unify (list (cons t1 t2)))))
-  (print subst)
-  (print (apply-substitution subst t1))
-  (print (apply-substitution subst t2)))
