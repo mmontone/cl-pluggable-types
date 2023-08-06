@@ -145,6 +145,7 @@ Type parameters are substituted by type variables."
 
 
 (defun more-informative-type (type1 type2)
+  ;;(break)
   (cond
     ((or (typep type1 'unknown)
          (typep type1 'var))
@@ -199,10 +200,29 @@ Type parameters are substituted by type variables."
     (cdr local)
     (error "Shouldn't happen")))
 
+(defmethod infer-form ((form lambda-function-form) env locals)
+  (let* ((var (new-var form env))
+         (arg-types (mapcar (rcurry #'new-var env) (bindings-of form)))
+         (lambda-locals (append (mapcar (lambda (arg arg-type)
+                                          (cons (name-of arg)
+                                                arg-type))
+                                        (bindings-of form)
+                                        arg-types)))
+         (body-type nil))
+    (generate-type-constraints-for-declarations
+     (declarations-of form) (mapcar #'cons (bindings-of form) arg-types)
+     form env (append locals lambda-locals))
+    (dolist (body-form (body-of form))
+      (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
+    (add-constraint (assign var `(function ,arg-types ,body-type)) env)
+    var))
+
 (defmethod bid-check-type ((form walked-form) type env locals)
   (let ((inferred-type (infer-type form env locals)))
     (ensure-types-compatible inferred-type type)
-    (more-informative-type type inferred-type)))
+    ;;(more-informative-type type inferred-type)
+    inferred-type
+    ))
 
 (defmethod bid-check-type ((form let-form) type env locals)
   (let ((let-locals locals))
@@ -216,21 +236,17 @@ Type parameters are substituted by type variables."
         (setf body-type (infer-type body-form env let-locals)))
       body-type)))
 
-(defmethod generate-type-constraints ((form let*-form) env locals)
+(defmethod bid-check-type ((form let*-form) type env locals)
   (let ((let-locals locals))
     (dolist (binding (bindings-of form))
-      (let ((binding-value-var
-              (generate-type-constraints (initial-value-of binding) env let-locals)))
-        (let ((binding-var (new-var binding env)))
-          (add-constraint (assign binding-var binding-value-var) env)
-          (push (cons (name-of binding) binding-var) let-locals))))
+      (let ((binding-type
+              (infer-type (initial-value-of binding) env let-locals)))
+        (push (cons (name-of binding) binding-type) let-locals)))
     ;; The type of the let is the type of the last expression in body, so return that
-    (let ((body-var nil)
-          (let-var (new-var form env)))
+    (let ((body-type (unknown nil)))
       (dolist (body-form (body-of form))
-        (setf body-var (generate-type-constraints body-form env let-locals)))
-      (add-constraint (assign let-var body-var) env)
-      let-var)))
+        (setf body-type (infer-type body-form env let-locals)))
+      body-type)))
 
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
@@ -276,20 +292,19 @@ PAIRS is a list of CONSes, with (old . new)."
 (defmethod infer-type ((form free-application-form) env locals)
   (let* ((args (arguments-of form))
          (func-type (instantiate-type (get-func-type (operator-of form) env) env))
-         (formal-arg-types (assign-types-from-function-type func-type args))
-         (arg-type-assignments ()))
+         (formal-arg-types (assign-types-from-function-type func-type args)))
     ;; Check the types of the arguments
-    (loop for arg in args
-          for arg-type in formal-arg-types
-          do
-             ;; The formal arg-type can have type vars.
-             ;; We have to instantiate the vars from the type of the actual given arguments.
-             (let ((checked-arg-type (bid-check-type arg (cdr arg-type) env locals)))
-               (push (cons (cdr arg-type) checked-arg-type)
-                     arg-type-assignments)))
-    ;;(break "~s" arg-type-assignments)
-    (let ((var-assignments (extract-var-assignments* arg-type-assignments)))
-      (subst-all var-assignments (lastcar func-type)))))
+    (let ((checked-arg-types
+            (loop for arg in args
+                  for arg-type in formal-arg-types
+                  collect (bid-check-type arg (cdr arg-type) env locals))))
+      ;; Unify terms with type variables
+      (let ((subst (unify
+                    (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
+                                   (mapcar #'cons
+                                           (mapcar #'cdr formal-arg-types)
+                                           checked-arg-types)))))
+      (apply-substitution* subst (lastcar func-type))))))
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
@@ -317,9 +332,7 @@ PAIRS is a list of CONSes, with (old . new)."
      (list (cons term2 term1)))
     ((list (cons t1 ts1)
            (cons t2 ts2))
-     (apply #'append
-            (unify-one t1 t2)
-            (mapcar #'unify-one ts1 ts2)))
+     (unify (mapcar #'cons term1 term2)))
     (_
      (unless (types-compatible-p term1 term2)
        (type-unification-error (list term1 term2))))))
@@ -357,6 +370,15 @@ ASSIGNMENT is CONS of VAR to a TERM."
     (dolist (assignment assignments)
       (setq new-term (subst-term assignment new-term)))
     new-term))
+
+(defun apply-substitution* (assignments term)
+  "Apply as much substitutions as possible."
+  (let ((subst-term term)
+        (last-subst-term nil))
+    (loop while (not (equalp subst-term last-subst-term))
+          do (setq last-subst-term subst-term)
+             (setq subst-term (apply-substitution assignments subst-term)))
+    subst-term))
 
 (declaim (ftype (function ((list-of cons)) list) unify))
 (defun unify (constraints)
