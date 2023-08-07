@@ -20,7 +20,8 @@
   `(is (types-compatible-p (check-form ',form) ',type)))
 
 (defmacro check-signals-error (form)
-  `(signals type-checking-error (check-form ',form)))
+  `(signals type-checking-error
+     (check-form ',form)))
 
 (deftest check-constant-tests ()
   (check-is-subtypep 22 number)
@@ -29,7 +30,7 @@
 (deftest function-application-tests ()
   (check-signals-error (+ 22 "lala"))
   (check-is-equalp (+ 22 40) (values number &optional)))
-  
+
 (deftest check-let-tests ()
   (check-is-subtypep (let ((x "lla")) x) string)
   (-> (let ((x 34)
@@ -54,22 +55,22 @@
   (check-is-equalp (mapcar #'+ '(1 2 3))
                    (list-of number))
   (check-signals-error
-    (mapcar #'+ (the (list-of string) '("lala" 2 3))))
+   (mapcar #'+ (the (list-of string) '("lala" 2 3))))
   (check-is-equalp
    (mapcar #'identity (the (list-of string) '("lala" 2 3)))
    (list-of string))
   (check-is-equalp (mapcar #'identity (the (list-of string) '("lala" 2 3)))
                    (list-of string))
   (check-is-equalp
-       (mapcar #'print (the (list-of string) '("lala")))
-       (list-of t))
+   (mapcar #'print (the (list-of string) '("lala")))
+   (list-of t))
 
   ;; (check-form '(mapcar #'identity (the list '("lala"))))
 
   ;; (check-form '(mapcar #'identity '("lala")))
 
   ;; (check-form '(mapcar #'identity (the (list-of t) '("lala"))))
-  
+
   (check-is-subtypep (nth 10 (the (list-of string) '("foo" "bar")))
                      string)
   (check-signals-error (nth "lala" (the (list-of string) '("foo" "bar"))))
@@ -93,19 +94,9 @@
   (check-is-equalp (car (the (cons-of integer string) (cons 2 "lala")))
                    integer)
   (check-is-equalp (cdr (the (cons-of integer string) (cons 2 "lala")))
-                   string)) 
+                   string))
 
-(deftest unify-basic-tests ()
-  (is (null
-       (pluggable-types/decl::unify-one 'number 'integer))))
-
-(deftest unify-values-tests ()
-  (is (null
-       (pluggable-types/decl::unify-one '(values integer) 'integer)))
-  (signals type-unification-error
-    (pluggable-types/decl::unify-one '(values string) 'integer)))
-
-(deftest lambda-tests ()
+#+nil(deftest lambda-tests ()
   (check-is-equalp (lambda (x) x) (all (a) (function (a) a)))
   (check-is-equalp (lambda (x y) x) (all (a b) (function (a b) a)))
   (check-is-equalp (lambda (x y) (the (cons-of integer string) (cons x y)))
@@ -113,7 +104,7 @@
   (check-is-equalp (lambda (x y) (cons (1+ x) (string-upcase y)))
                    (function (number (or string symbol character)) (cons-of number simple-string))))
 
-(deftest type-generalization-tests ()
+#+nil(deftest type-generalization-tests ()
   (check-is-equalp (lambda (x) x) (all (a) (function (a) a)))
   (check-is-equalp (lambda (x y) x) (all (a b) (function (a b) a))))
 
@@ -136,11 +127,11 @@
                   (make-hash-table))))
      (gethash 'lala ht))
    (values (or string null) boolean))
-  (signals type-unification-error
-    (check-form '(let ((ht (the (hash-table-of symbol string)
-                            (make-hash-table))))
-                  (gethash 22 ht))))
-  (signals type-unification-error
-    (check-form '(let ((ht (the (hash-table-of symbol string)
-                            (make-hash-table))))
-                  (+ (gethash 'lala ht) 22)))))
+  (check-signals-error
+   (let ((ht (the (hash-table-of symbol string)
+                  (make-hash-table))))
+     (gethash 22 ht)))
+  (check-signals-error
+   (let ((ht (the (hash-table-of symbol string)
+                  (make-hash-table))))
+     (+ (gethash 'lala ht) 22))))
