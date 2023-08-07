@@ -402,3 +402,36 @@ ASSIGNMENT is CONS of VAR to a TERM."
              (unify-one (apply-substitution substitution (car constraint))
                         (apply-substitution substitution (cdr constraint)))))
       (append sub2 substitution))))
+
+;; Type cases
+
+(defun type-cases (type)
+  ;; TODO
+  (list type))
+
+(defun case-type-p (type)
+  nil)
+
+(defun %call-with-types-combinations (type-cases types func)
+  (when (null types)
+    (return-from %call-with-types-combinations (funcall func (reverse type-cases))))
+    
+  (destructuring-bind (type . rest-types) types
+    (if (case-type-p type)
+        (loop with type-type-cases = (type-cases type)
+              for type-case = (pop type-type-cases) then (pop type-type-cases)
+              while type-case
+              do
+                 (if (null type-cases)
+                     ;; If this is the last case, then don't handle error and fail potentially
+                     (%call-with-types-combinations (cons type-case type-cases) rest-types func)
+                     ;; otherwise, handle error and try with another case
+                     (handler-case
+                         (%call-with-types-combinations (cons type-case type-cases) rest-types func)
+                         (error ()))))
+          ;; if not a case type, just call with the type
+          (%call-with-types-combinations (cons type type-cases) rest-types func))))
+
+
+(defun call-with-types-combinations (types func)
+  (%call-with-types-combinations nil types func))
