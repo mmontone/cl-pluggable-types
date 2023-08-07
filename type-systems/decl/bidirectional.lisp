@@ -223,22 +223,28 @@ Type parameters are substituted by type variables."
     (cdr local)
     (error "Shouldn't happen")))
 
-(defmethod infer-form ((form lambda-function-form) env locals)
-  (let* ((var (new-var form env))
-         (arg-types (mapcar (rcurry #'new-var env) (bindings-of form)))
-         (lambda-locals (append (mapcar (lambda (arg arg-type)
-                                          (cons (name-of arg)
-                                                arg-type))
-                                        (bindings-of form)
-                                        arg-types)))
+(defun parse-type-declarations (declarations)
+  (let ((types))
+    (dolist (declaration declarations)
+      (typecase declaration
+        (type-declaration-form
+         (push (cons (name-of declaration)
+                     (declared-type-of declaration))
+               types))))
+    types))       
+
+(defmethod infer-type ((form lambda-function-form) env locals)
+  (let* ((lambda-locals (append (parse-type-declarations (declarations-of form))
+                                (mapcar (lambda (arg)
+                                          (cons (name-of arg) (unknown arg)))
+                                        (bindings-of form))
+                                locals))
          (body-type nil))
-    (generate-type-constraints-for-declarations
-     (declarations-of form) (mapcar #'cons (bindings-of form) arg-types)
-     form env (append locals lambda-locals))
     (dolist (body-form (body-of form))
-      (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
-    (add-constraint (assign var `(function ,arg-types ,body-type)) env)
-    var))
+      (setq body-type (bid-check-type body-form t env lambda-locals)))
+    (let ((arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
+                           collect (cdr (assoc arg-name lambda-locals)))))
+      `(function ,arg-types ,body-type))))
 
 (defmethod bid-check-type ((form walked-form) type env locals)
   (let ((inferred-type (infer-type form env locals)))
@@ -353,14 +359,6 @@ PAIRS is a list of CONSes, with (old . new)."
                   (walk-form form))))
     (bid-check-type form (unknown form) env nil)))
 
-(define-condition type-unification-error (type-checking-error)
-  ())
-
-(defun type-unification-error (args &optional message)
-  (cerror "Continue"
-          'type-unification-error
-         :format-control (or message "Can't unify: ~{~a~^, ~}")
-
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
   "Substitute ASSIGNMENT in TERM.
@@ -395,17 +393,6 @@ ASSIGNMENT is CONS of VAR to a TERM."
           do (setq last-subst-term subst-term)
              (setq subst-term (apply-substitution assignments subst-term)))
     subst-term))
-
-(declaim (ftype (function ((list-of cons)) list) unify))
-(defun unify (constraints)
-  "Unify CONSTRAINTS."
-  (when constraints
-    (let* ((substitution (unify (rest constraints)))
-           (constraint (first constraints))
-           (sub2
-             (unify-one (apply-substitution substitution (car constraint))
-                        (apply-substitution substitution (cdr constraint)))))
-      (append sub2 substitution))))
 
 ;; Type vars resolution
 
@@ -443,10 +430,6 @@ ASSIGNMENT is CONS of VAR to a TERM."
            (cons t2 ts2))
      (append (resolve-type-vars-one t1 t2)
              (resolve-type-vars (mapcar #'cons ts1 ts2))))
-    ((list (cons t1 ts1) _)
-     (type-unification-error (list term1 term2)))
-    ((list _ (cons t2 ts2))
-     (type-unification-error (list term1 term2)))
     (_
      nil
      )))
