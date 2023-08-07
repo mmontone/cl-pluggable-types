@@ -298,21 +298,25 @@ PAIRS is a list of CONSes, with (old . new)."
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
 (defmethod infer-type ((form free-application-form) env locals)
-  (let* ((args (arguments-of form))
-         (func-type (instantiate-type (get-func-type (operator-of form) env) env))
-         (formal-arg-types (assign-types-from-function-type func-type args)))
-    ;; Check the types of the arguments
-    (let ((checked-arg-types
-            (loop for arg in args
-                  for arg-type in formal-arg-types
-                  collect (bid-check-type arg (cdr arg-type) env locals))))
-      ;; Unify terms with type variables
-      (let ((subst (unify
-                    (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
-                                   (mapcar #'cons
-                                           (mapcar #'cdr formal-arg-types)
-                                           checked-arg-types)))))
-      (apply-substitution* subst (lastcar func-type))))))
+  (call-with-type-combinations
+   (get-func-type (operator-of form) env)
+   (lambda (abstract-func-type)                            
+     (let* ((args (arguments-of form))
+            (func-type (instantiate-type abstract-func-type env))
+            (formal-arg-types (assign-types-from-function-type func-type args)))
+
+       ;; Check the types of the arguments
+       (let ((checked-arg-types
+               (loop for arg in args
+                     for arg-type in formal-arg-types
+                     collect (bid-check-type arg (cdr arg-type) env locals))))
+         ;; Unify terms with type variables
+         (let ((subst (unify
+                       (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
+                                      (mapcar #'cons
+                                              (mapcar #'cdr formal-arg-types)
+                                              checked-arg-types)))))
+           (apply-substitution* subst (lastcar func-type))))))))
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
@@ -325,7 +329,8 @@ PAIRS is a list of CONSes, with (old . new)."
   ())
 
 (defun type-unification-error (args &optional message)
-  (error 'type-unification-error
+  (cerror "Continue"
+          'type-unification-error
          :format-control (or message "Can't unify: ~{~a~^, ~}")
          :format-arguments (list args)))
 
@@ -416,12 +421,14 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 ;; Type cases
 
-(defun type-cases (type)
-  ;; TODO
-  (list type))
-
 (defun case-type-p (type)
-  nil)
+  (and (listp type)
+       (eql (car type) 'case)))
+
+(defun type-cases (type)
+  (if (case-type-p type)
+      (rest type)
+      (list type)))
 
 (defun %call-with-types-combinations (type-cases types func)
   (when (null types)
@@ -446,3 +453,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 (defun call-with-types-combinations (types func)
   (%call-with-types-combinations nil types func))
+
+  (defun call-with-type-combinations (type func)
+    (%call-with-types-combinations nil (list type)
+                                   (compose func #'car)))
+ 
