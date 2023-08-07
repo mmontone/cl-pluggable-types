@@ -30,7 +30,7 @@
   (declared-vartypes nil :type list)
   (debugp nil :type boolean))
 
-(adt:defdata bid-type
+(adt:defdata (bid-type :mutable t)
   (unknown t)
   (var t t)
   (literal t))
@@ -39,6 +39,9 @@
   (error 'type-checking-error
          :format-control message
          :format-arguments args))
+
+(defun unknown-p (x)
+  (typep x 'unknown))
 
 (defun types-compatible-p (type1 type2)
   (trivia:match (list type1 type2)
@@ -75,7 +78,13 @@
                         (and (symbolp tname1)
                              (symbolp tname2)
                              (eql tname1 tname2)))))
-     (every #'types-compatible-p args1 args2))          
+     (every #'types-compatible-p args1 args2))
+    ((list _ (satisfies unknown-p))
+     (adt:set-data type2 (unknown type1))
+     t)
+    ((list (satisfies unknown-p) _)
+     (adt:set-data type1 (unknown type2))
+     t)
     (_
      (or
       (some (rcurry #'typep 'var) (list type1 type2))
@@ -241,9 +250,9 @@ Type parameters are substituted by type variables."
                                 locals))
          (arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
                            collect (cdr (assoc arg-name lambda-locals))))
-         (body-type nil))
+         (body-type (unknown form)))
     (dolist (body-form (body-of form))
-      (setq body-type (bid-check-type body-form t env lambda-locals)))
+      (setq body-type (bid-check-type body-form body-type env lambda-locals)))
     `(function ,arg-types ,body-type)))
 
 (defmethod bid-check-type ((form walked-form) type env locals)
