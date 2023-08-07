@@ -300,28 +300,36 @@ PAIRS is a list of CONSes, with (old . new)."
 (defmethod infer-type ((form free-application-form) env locals)
   (call-with-type-combinations
    (get-func-type (operator-of form) env)
-   (lambda (abstract-func-type)                            
+   (lambda (abstract-func-type)
      (let* ((args (arguments-of form))
             (func-type (instantiate-type abstract-func-type env))
-            (formal-arg-types (assign-types-from-function-type func-type args)))
+            (formal-args (assign-types-from-function-type func-type args)))
 
        (call-with-types-combinations
-        formal-arg-types
-        (lambda (formal-arg-types)                             
-
-          ;; Check the types of the arguments
-          (let ((checked-arg-types
-                  (loop for arg in args
-                        for arg-type in formal-arg-types
-                        collect (bid-check-type arg (cdr arg-type) env locals))))
-            ;; Unify terms with type variables
-            (let ((subst (unify
-                          (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
-                                         (mapcar #'cons
-                                                 (mapcar #'cdr formal-arg-types)
-                                                 checked-arg-types
-                                                 )))))
-              (apply-substitution* subst (lastcar func-type))))))))))
+        (mapcar #'cdr formal-args)
+        (lambda (formal-arg-types)
+          (if (concrete-type-p abstract-func-type)
+              (progn
+                ;; There are no type variables in function type.
+                ;; Simply type check the arguments and result.
+                ;; Check the types of the arguments
+                (loop for arg in args
+                      for formal-arg-type in formal-arg-types
+                      do (bid-check-type arg formal-arg-type env locals))
+                ;; Return the type of the application
+                (lastcar func-type))
+              ;; else, the type of the function is generic
+              ;; so, resolve the type variables to the inferred types of the arguments
+              ;; finally typecheck with the resolved types.
+              (let* ((arg-types (mapcar (rcurry #'infer-type env locals) args))
+                     (subst (resolve-type-vars (list (cons `(function ,arg-types ,(lastcar func-type))
+                                                           func-type ))))
+                     (solved-arg-types (mapcar (curry #'apply-substitution* subst) (second func-type))))
+                (loop for arg in args
+                      for arg-type in solved-arg-types
+                      do (bid-check-type arg arg-type env locals))
+                ;;(break "~s" arg-types)
+                (return-from infer-type (apply-substitution* subst (lastcar func-type)))))))))))
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
@@ -367,8 +375,9 @@ PAIRS is a list of CONSes, with (old . new)."
            (cons t2 ts2))
      (unify (mapcar #'cons term1 term2)))
     (_
-     (unless (types-compatible-p term1 term2)
-       (type-unification-error (list term1 term2))))))
+     #+nil(unless (types-compatible-p term1 term2)
+       (type-unification-error (list term1 term2)))
+     )))
 
 (unify-one 'integer 'integer)
 (unify-one (var 'x nil) 'integer)
@@ -424,6 +433,76 @@ ASSIGNMENT is CONS of VAR to a TERM."
                         (apply-substitution substitution (cdr constraint)))))
       (append sub2 substitution))))
 
+;; Type vars resolution
+
+(defun resolve-type-vars-one (term1 term2)
+  (when (eql term1 term2)
+    (return-from resolve-type-vars-one nil))
+  (trivia:match (list term1 term2)
+    #+nil((list (list 'function args1 ret1)
+           (list 'function args2 ret2))
+     (append (resolve-type-vars (mapcar #'cons args1 args2))
+             (resolve-type-vars-one ret1 ret2)))             
+    ((list (cons 'values ts1) (cons 'values ts2))
+     (resolve-type-vars (mapcar #'cons ts1 ts2)))
+    ((list (cons 'values values) type)
+     (resolve-type-vars-one (car values) type))
+    ((list type (cons 'values values))
+     (resolve-type-vars-one type (car values)))
+    ((list (list 'cons-of a b)
+           (list 'list-of type))
+     (resolve-type-vars-one term1 `(cons-of ,type (list-of ,type))))
+    ((list (list 'list-of type) (list 'cons-of a b))
+     (resolve-type-vars-one `(cons-of ,type (list-of ,type)) term2))
+    ((list (var (%0 vname) (%1 vinfo))
+           t2)
+     (list (cons term1 term2)))
+    ((list t1 (var (%0 vname) (%1 vinfo)))
+     (list (cons term2 term1)))
+    ((list (list '&rest t1) (list '&rest t2))
+     (resolve-type-vars-one t1 t2))
+    ((list (list '&rest rtype) _)
+     (resolve-type-vars-one rtype term2))
+    ((list _ (list '&rest rtype))
+     (resolve-type-vars (mapcar (rcurry #'cons rtype) term1)))
+    ((list (cons t1 ts1)
+           (cons t2 ts2))
+     (append (resolve-type-vars-one t1 t2)
+             (resolve-type-vars (mapcar #'cons ts1 ts2))))
+    (_
+     nil
+     )))
+
+(declaim (ftype (function ((list-of cons)) list) resolve-type-vars))
+(defun resolve-type-vars (constraints)
+  "Unify CONSTRAINTS."
+  (when constraints
+    (let* ((substitution (resolve-type-vars (rest constraints)))
+           (constraint (first constraints))
+           (sub2
+             (resolve-type-vars-one
+              (apply-substitution substitution (car constraint))
+              (apply-substitution substitution (cdr constraint)))))
+      (append sub2 substitution))))
+
+(defun generic-type-p (type)
+  (and (listp type)
+       (eql (car type) 'all)))
+
+(defun concrete-type-p (type)
+  (not (generic-type-p type)))
+
+(defun tree-find-if (predicate tree)
+  (cond
+    ((atom tree)
+     (funcall predicate tree))
+    ((consp tree)
+     (or (tree-find-if predicate (car tree))
+         (tree-find-if predicate (cdr tree))))))
+
+(defun fully-resolved-p (thing)
+  (not (tree-find-if (rcurry #'typep 'type-var) thing)))
+
 ;; Type cases
 
 (defun case-type-p (type)
@@ -450,8 +529,10 @@ ASSIGNMENT is CONS of VAR to a TERM."
                      (%call-with-types-combinations (cons type-case type-cases) rest-types func)
                      ;; otherwise, handle error and try with another case
                      (handler-case
-                         (%call-with-types-combinations (cons type-case type-cases) rest-types func)
-                         (error ()))))
+                         (return-from %call-with-types-combinations
+                           (%call-with-types-combinations (cons type-case type-cases) rest-types func))
+                       (error ()
+                         (break "Try another case")))))
           ;; if not a case type, just call with the type
           (%call-with-types-combinations (cons type type-cases) rest-types func))))
 
