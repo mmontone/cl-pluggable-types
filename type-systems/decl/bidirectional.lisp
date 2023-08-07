@@ -239,12 +239,12 @@ Type parameters are substituted by type variables."
                                           (cons (name-of arg) (unknown arg)))
                                         (bindings-of form))
                                 locals))
+         (arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
+                           collect (cdr (assoc arg-name lambda-locals))))
          (body-type nil))
     (dolist (body-form (body-of form))
       (setq body-type (bid-check-type body-form t env lambda-locals)))
-    (let ((arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
-                           collect (cdr (assoc arg-name lambda-locals)))))
-      `(function ,arg-types ,body-type))))
+    `(function ,arg-types ,body-type)))
 
 (defmethod bid-check-type ((form walked-form) type env locals)
   (let ((inferred-type (infer-type form env locals)))
@@ -263,6 +263,7 @@ Type parameters are substituted by type variables."
     (let ((body-type (unknown nil)))
       (dolist (body-form (body-of form))
         (setf body-type (infer-type body-form env let-locals)))
+      (ensure-types-compatible body-type type)
       body-type)))
 
 (defmethod bid-check-type ((form let*-form) type env locals)
@@ -275,6 +276,7 @@ Type parameters are substituted by type variables."
     (let ((body-type (unknown nil)))
       (dolist (body-form (body-of form))
         (setf body-type (infer-type body-form env let-locals)))
+      (ensure-types-compatible body-type type)
       body-type)))
 
 (defun subst-all (pairs tree &key key test test-not)
@@ -318,7 +320,7 @@ PAIRS is a list of CONSes, with (old . new)."
 (defun extract-var-assignments* (assignments)
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
-(defmethod infer-type ((form free-application-form) env locals)
+(defmethod infer-type ((form application-form) env locals)
   (call-with-type-combinations
    (get-func-type (operator-of form) env)
    (lambda (abstract-func-type)
