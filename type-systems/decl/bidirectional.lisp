@@ -60,15 +60,22 @@
            (list 'list-of type))
      (types-compatible-p type1
                          `(cons-of ,type (list-of ,type))))
-    ((list (list 'hash-table-of a b)
-           (list 'hash-table-of c d))
-     (and
-      (types-compatible-p a c)
-      (types-compatible-p b c)))
     ((list (list 'function f1args f1ret)
            (list 'function f2args f2ret))
      ;; TODO: parse lambda lists and check args
      (types-compatible-p f2ret f1ret))
+    ;; Type union
+    ((list _ (cons 'or types))
+     (some (rcurry #'types-compatible-p type1) types))          
+    ;; Compatibility of composed types
+    ((and (list (cons tname1 args1)
+                (cons tname2 args2))
+          (satisfies (lambda (_)
+                        (declare (ignore _))
+                        (and (symbolp tname1)
+                             (symbolp tname2)
+                             (eql tname1 tname2)))))
+     (every #'types-compatible-p args1 args2))          
     (_
      (or
       (some (rcurry #'typep 'var) (list type1 type2))
@@ -77,7 +84,7 @@
 
 (defun ensure-types-compatible (type1 type2)
   (unless (types-compatible-p type1 type2)
-    (bid-type-error "Types not compatible: ~a and ~a" type1 type2)))
+    (bid-type-error "A ~a cannot be used as a ~a" type1 type2)))
 
 (declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
 (defun get-func-type (func env)
