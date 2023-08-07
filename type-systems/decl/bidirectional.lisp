@@ -305,18 +305,23 @@ PAIRS is a list of CONSes, with (old . new)."
             (func-type (instantiate-type abstract-func-type env))
             (formal-arg-types (assign-types-from-function-type func-type args)))
 
-       ;; Check the types of the arguments
-       (let ((checked-arg-types
-               (loop for arg in args
-                     for arg-type in formal-arg-types
-                     collect (bid-check-type arg (cdr arg-type) env locals))))
-         ;; Unify terms with type variables
-         (let ((subst (unify
-                       (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
-                                      (mapcar #'cons
-                                              (mapcar #'cdr formal-arg-types)
-                                              checked-arg-types)))))
-           (apply-substitution* subst (lastcar func-type))))))))
+       (call-with-types-combinations
+        formal-arg-types
+        (lambda (formal-arg-types)                             
+
+          ;; Check the types of the arguments
+          (let ((checked-arg-types
+                  (loop for arg in args
+                        for arg-type in formal-arg-types
+                        collect (bid-check-type arg (cdr arg-type) env locals))))
+            ;; Unify terms with type variables
+            (let ((subst (unify
+                          (remove-if-not (curry #'pluggable-types/decl::tree-find-if (rcurry #'typep 'var))
+                                         (mapcar #'cons
+                                                 (mapcar #'cdr formal-arg-types)
+                                                 checked-arg-types
+                                                 )))))
+              (apply-substitution* subst (lastcar func-type))))))))))
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
@@ -454,7 +459,12 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defun call-with-types-combinations (types func)
   (%call-with-types-combinations nil types func))
 
-  (defun call-with-type-combinations (type func)
-    (%call-with-types-combinations nil (list type)
-                                   (compose func #'car)))
- 
+(defun call-with-type-combinations (type func)
+  (%call-with-types-combinations nil (list type)
+                                 (compose func #'car)))
+
+(defmacro with-types-combinations (types &body body)
+  `(call-with-types-combinations ,types (lambda (,types) ,@body)))
+
+(defmacro with-type-combinations (type &body body)
+  `(call-with-type-combinations ,type (lambda (,type) ,@body)))
