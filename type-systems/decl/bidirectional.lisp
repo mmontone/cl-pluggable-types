@@ -69,15 +69,15 @@
      (types-compatible-p f2ret f1ret))
     ;; Type union
     ((list _ (cons 'or types))
-     (some (rcurry #'types-compatible-p type1) types))          
+     (some (rcurry #'types-compatible-p type1) types))
     ;; Compatibility of composed types
     ((and (list (cons tname1 args1)
                 (cons tname2 args2))
           (satisfies (lambda (_)
-                        (declare (ignore _))
-                        (and (symbolp tname1)
-                             (symbolp tname2)
-                             (eql tname1 tname2)))))
+                       (declare (ignore _))
+                       (and (symbolp tname1)
+                            (symbolp tname2)
+                            (eql tname1 tname2)))))
      (every #'types-compatible-p args1 args2))
     ((list _ (satisfies unknown-p))
      (adt:set-data type2 (unknown type1))
@@ -240,7 +240,7 @@ Type parameters are substituted by type variables."
          (push (cons (name-of declaration)
                      (declared-type-of declaration))
                types))))
-    types))       
+    types))
 
 (defmethod infer-type ((form lambda-function-form) env locals)
   (let* ((lambda-locals (append (parse-type-declarations (declarations-of form))
@@ -249,7 +249,7 @@ Type parameters are substituted by type variables."
                                         (bindings-of form))
                                 locals))
          (arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
-                           collect (cdr (assoc arg-name lambda-locals))))
+                          collect (cdr (assoc arg-name lambda-locals))))
          (body-type (unknown form)))
     (dolist (body-form (body-of form))
       (setq body-type (bid-check-type body-form body-type env lambda-locals)))
@@ -302,10 +302,10 @@ PAIRS is a list of CONSes, with (old . new)."
                (append
                 (when key
                   (list :key key))
-                 (when test
-                   (list :test test))
-                 (when test-not
-                   (list :test-not test-not)))))))
+                (when test
+                  (list :test test))
+                (when test-not
+                  (list :test-not test-not)))))))
 
 (defmethod bid-check-type ((form application-form) type env locals)
   (let ((inferred-type (infer-type form env locals)))
@@ -412,9 +412,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
     (return-from resolve-type-vars-one nil))
   (trivia:match (list term1 term2)
     #+nil((list (list 'function args1 ret1)
-           (list 'function args2 ret2))
-     (append (resolve-type-vars (mapcar #'cons args1 args2))
-             (resolve-type-vars-one ret1 ret2)))             
+                (list 'function args2 ret2))
+          (append (resolve-type-vars (mapcar #'cons args1 args2))
+                  (resolve-type-vars-one ret1 ret2)))
     ((list (cons 'values ts1) (cons 'values ts2))
      (resolve-type-vars (mapcar #'cons ts1 ts2)))
     ((list (cons 'values values) type)
@@ -486,28 +486,28 @@ ASSIGNMENT is CONS of VAR to a TERM."
       (rest type)
       (list type)))
 
-(defun %call-with-types-combinations (type-cases types func)
+(defun %call-with-types-combinations (types-combination types func)
   (when (null types)
-    (return-from %call-with-types-combinations (funcall func (reverse type-cases))))
-    
+    (return-from %call-with-types-combinations (funcall func (reverse types-combination))))
+
   (destructuring-bind (type . rest-types) types
     (if (case-type-p type)
-        (loop with type-type-cases = (type-cases type)
-              for type-case = (pop type-type-cases) then (pop type-type-cases)
+        (loop with type-cases = (type-cases type)
+              for type-case = (pop type-cases) then (pop type-cases)
               while type-case
               do
                  (if (null type-cases)
                      ;; If this is the last case, then don't handle error and fail potentially
-                     (%call-with-types-combinations (cons type-case type-cases) rest-types func)
+                     (return-from %call-with-types-combinations
+                       (%call-with-types-combinations (cons type-case types-combination) rest-types func))
                      ;; otherwise, handle error and try with another case
                      (handler-case
                          (return-from %call-with-types-combinations
-                           (%call-with-types-combinations (cons type-case type-cases) rest-types func))
+                           (%call-with-types-combinations (cons type-case types-combination) rest-types func))
                        (error ()
                          (break "Try another case")))))
-          ;; if not a case type, just call with the type
-          (%call-with-types-combinations (cons type type-cases) rest-types func))))
-
+        ;; if not a case type, just call with the type
+        (%call-with-types-combinations (cons type types-combination) rest-types func))))
 
 (defun call-with-types-combinations (types func)
   (%call-with-types-combinations nil types func))
