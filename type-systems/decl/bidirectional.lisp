@@ -95,7 +95,8 @@
   (unless (types-compatible-p type1 type2)
     (bid-type-error "A ~a cannot be used as a ~a" type1 type2)))
 
-(declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
+(declaim (ftype (function ((or symbol function) type-env) t)
+                get-func-type))
 (defun get-func-type (func env)
   "Get the type of function with FNAME in ENV."
   (let ((fname (typecase func
@@ -522,3 +523,36 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 (defmacro with-type-combinations (type &body body)
   `(call-with-type-combinations ,type (lambda (,type) ,@body)))
+
+
+(defun available-class-slots (class)
+  (multiple-value-bind (slots allow-other-keys-p)
+      (if (swank-mop:class-finalized-p class)
+          (values (closer-mop:class-slots class) nil)
+          (values (closer-mop:class-direct-slots class) t))
+    (values slots allow-other-keys-p)))
+
+(defun check-make-instance (form env locals)
+  (assert (eql (operator-of form) 'make-instance))
+  (let ((class-designator (first (arguments-of form))))
+    (when (not (and (typep class-designator 'constant-form)
+                    (symbolp (value-of class-designator))))
+      (return-from check-make-instance))
+    (let ((class (find-class (value-of class-designator) nil)))
+      (unless class
+        (error "Class not defined: ~a" (value-of class-designator)))
+      (let* ((args (cdr (arguments-of form)))
+             (class-slots (available-class-slots class))
+             (initargs (apply #'append (mapcar #'closer-mop:slot-definition-initargs class-slots))))
+        (loop for initkey in args by #'cddr
+              for initval in (rest args) by #'cddr
+              do 
+                 (when (and (typep initkey 'constant-form)
+                            (keywordp (value-of initkey)))
+                   (unless (find (value-of initkey) initargs)
+                     (error "Invalid initarg: ~s. Valid initargs: ~s"
+                            (value-of initkey) initargs))
+                   (let ((slot (find-if (lambda (slot)
+                                          (member (value-of initkey) (closer-mop:slot-definition-initargs slot)))
+                                        class-slots)))
+                     (bid-check-type initval (closer-mop:slot-definition-type slot) env locals))))))))
