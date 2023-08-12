@@ -505,7 +505,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
                          (return-from %call-with-types-combinations
                            (%call-with-types-combinations (cons type-case types-combination) rest-types func))
                        (error ()
-                         (break "Try another case")))))
+                         ;;(break "Try another case")
+                         ))))
         ;; if not a case type, just call with the type
         (%call-with-types-combinations (cons type types-combination) rest-types func))))
 
