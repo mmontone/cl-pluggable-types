@@ -143,25 +143,46 @@
       :type integer)))
 
 (deftest make-instance-tests ()
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'lala))
-                       (pluggable-types/bid::make-type-env) nil)
+  (signals error
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'lala))
+     (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'simple-error))
-                       (pluggable-types/bid::make-type-env) nil)
+  (finishes
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'simple-error))
+     (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'simple-error :lala 22))
-                       (pluggable-types/bid::make-type-env) nil)
+  (signals error
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'simple-error :lala 22))
+     (pluggable-types/bid::make-type-env) nil))
 
   ;; SIMPLE-ERROR slots are not properly typed unfortunately
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'simple-error :format-control 22)) (pluggable-types/bid::make-type-env) nil)
+  #+nil(pluggable-types/bid::check-make-instance
+        (hu.dwim.walker:walk-form '(make-instance 'simple-error :format-control 22)) (pluggable-types/bid::make-type-env) nil)
 
+  ;; Invalid initargs
+  (signals error
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :foo 22)) (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :foo 22)) (pluggable-types/bid::make-type-env) nil)
+  ;; Checks initargs type
+  (signals error
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x 22)) (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x 22)) (pluggable-types/bid::make-type-env) nil)
+  (signals error
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x nil))
+     (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x nil)) (pluggable-types/bid::make-type-env) nil)
+  (finishes
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x "lala"))
+     (pluggable-types/bid::make-type-env) nil))
 
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x "lala")) (pluggable-types/bid::make-type-env) nil)
-
-  (pluggable-types/bid::check-make-instance (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :y 22)) (pluggable-types/bid::make-type-env) nil))
+  (finishes
+    (pluggable-types/bid::check-make-instance
+     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :y 22))
+     (pluggable-types/bid::make-type-env) nil)))
