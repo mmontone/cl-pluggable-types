@@ -445,7 +445,7 @@ PAIRS is a list of CONSes, with (old . new)."
     (dolist (fbinding (bindings-of form))
       (let ((ftype (or (cdr (assoc (name-of fbinding) ftype-declarations))
                        '(function (&rest t) t))))
-        (bid-check-type (value-of fbinding) ftype env)))
+        (bid-check-type fbinding ftype env)))
     (let ((body-type (unknown nil)))
       (with-type-env (env env)
         (appendf-front (type-env-ftypes env) ftype-declarations)

@@ -186,3 +186,23 @@
     (pluggable-types/bid::check-make-instance
      (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :y 22))
      (pluggable-types/bid::make-type-env))))
+
+(deftest flet-tests ()
+  (check-is-equalp
+   (flet ((hello (x)
+            x))
+     (declare (ftype (function (integer) integer) hello))
+     (hello 22))
+   integer)
+
+  (check-is-equalp
+   (flet ((hello (x)
+            x))
+     (hello 22))
+   t)
+
+  (signals type-checking-error
+    (check-form '(flet ((hello (x)
+                         x))
+                  (declare (ftype (function (integer) integer) hello))
+                  (hello "lala")))))
