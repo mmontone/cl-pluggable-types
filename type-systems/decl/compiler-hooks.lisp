@@ -30,7 +30,7 @@
       (funcall func)
       (handler-case
           (funcall func)
-        (type-unification-error (e)
+        (pluggable-types/bid::type-checking-error (e)
           (funcall *type-error-reporter* e))
         (error (e)
           (warn 'simple-warning
@@ -44,7 +44,7 @@
      (mapcar #'type-check-definition forms))
     ((cons 'defun _)
      (call-with-type-error-handler
-      (lambda () (infer-form expr))))))
+      (lambda () (pluggable-types/bid::check-form expr))))))
 
 (defun load-file-type-declarations (file &rest args)
   (declare (ignore args))
