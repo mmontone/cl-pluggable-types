@@ -307,6 +307,11 @@ Type parameters are substituted by type variables."
       (ensure-types-compatible body-type type)
       body-type)))
 
+(defmethod infer-type ((form setq-form) env locals)
+  (let ((var-type (or (cdr (find (name-of (variable-of form)) locals :key #'car))
+                      (error "Fix this"))))
+    (bid-check-type (value-of form) var-type env locals)))
+
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
 PAIRS is a list of CONSes, with (old . new)."
