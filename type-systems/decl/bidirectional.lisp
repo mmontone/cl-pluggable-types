@@ -24,14 +24,30 @@
   "When enabled, use types provided by the Lisp compiler.")
 
 (define-condition type-checking-error (simple-error)
-  ())
+  ((form :initarg :form
+         :accessor error-form)
+   (source :initarg :source
+           :accessor error-source)
+   (position :initarg :position
+             :accessor error-position)))
 
 (defstruct type-env
   (symbol-nr 0 :type integer)
   (vars nil :type list)
-  (declared-ftypes nil :type list)
-  (declared-vartypes nil :type list)
+  (ftypes nil :type list)
+  (vartypes nil :type list)
   (debugp nil :type boolean))
+
+(defmacro with-type-env ((var &optional env) &body body)
+  (if env
+      `(let ((,var (copy-type-env ,env)))
+         ,@body)
+      `(let ((,var (make-type-env)))
+         ,@body)))
+
+(defmacro appendf-front (place &rest lists)
+  `(setf ,place
+         (append ,@lists ,place)))
 
 (adt:defdata (bid-type :mutable t)
   (unknown t)
@@ -98,7 +114,7 @@
   (unless (types-compatible-p type1 type2)
     (bid-type-error "A ~a cannot be used as a ~a" type1 type2)))
 
-(declaim (ftype (function ((or symbol function) context type-env) t)
+(declaim (ftype (function ((or symbol function) t type-env) t)
                 get-func-type))
 (defgeneric get-func-type (function-designator context type-env)
   (:documentation "Get the type for FUNCTION-DESIGNATOR in CONTEXT."))
@@ -218,36 +234,30 @@ Type parameters are substituted by type variables."
            type1
            type2))))
 
-(defgeneric infer-type (form env locals))
-(defgeneric bid-check-type (form type env locals))
+(defgeneric infer-type (form env))
+(defgeneric bid-check-type (form type env))
 
-(defmethod infer-type ((form constant-form) env locals)
+(defmethod infer-type ((form constant-form) env)
   (if (functionp (value-of form))
       (get-func-type (value-of form) form env)
       (type-of (value-of form))))
 
-(defmethod infer-type ((form free-function-object-form) env locals)
+(defmethod infer-type ((form free-function-object-form) env)
   (instantiate-type (get-func-type (name-of form) form env) env))
 
-(defmethod infer-type ((form the-form) env locals)
-  (bid-check-type (value-of form) (declared-type-of form) env locals)
+(defmethod infer-type ((form the-form) env)
+  (bid-check-type (value-of form) (declared-type-of form) env)
   (declared-type-of form))
 
-(defmethod bid-check-type ((form constant-form) type env locals)
-  (let ((itype (infer-type form env locals)))
+(defmethod bid-check-type ((form constant-form) type env)
+  (let ((itype (infer-type form env)))
     (if (types-compatible-p itype type)
         (more-informative-type type itype)
         (bid-type-error "Types not compatible: ~a and ~a" type itype))))
 
-(defmethod bid-check-type ((form the-form) type env locals)
-  (ensure-types-compatible
-   (infer-type (value-of form) env locals)
-   (declared-type-of form))
-  (ensure-types-compatible (declared-type-of form) type)
-  (declared-type-of form))
-
-(defmethod infer-type ((form walked-lexical-variable-reference-form) env locals)
-  (alexandria:if-let (local (assoc (name-of form) locals))
+(defmethod infer-type ((form walked-lexical-variable-reference-form) env)
+  (alexandria:if-let (local (assoc (name-of form)
+                                   (type-env-vartypes env)))
     (cdr local)
     (error "Shouldn't happen")))
 
@@ -261,56 +271,75 @@ Type parameters are substituted by type variables."
                types))))
     types))
 
-(defmethod infer-type ((form lambda-function-form) env locals)
+(defun parse-ftype-declarations (declarations)
+  (let ((types))
+    (dolist (declaration declarations)
+      (typecase declaration
+        (ftype-declaration-form
+         (push (cons (name-of declaration)
+                     (declared-type-of declaration))
+               types))))
+    types))
+
+(defmethod infer-type ((form lambda-function-form) env)
   (let* ((lambda-locals (append (parse-type-declarations (declarations-of form))
                                 (mapcar (lambda (arg)
                                           (cons (name-of arg) (unknown arg)))
-                                        (bindings-of form))
-                                locals))
+                                        (bindings-of form))))
          (arg-types (loop for arg-name in (mapcar #'name-of (bindings-of form))
                           collect (cdr (assoc arg-name lambda-locals))))
          (body-type (unknown form)))
-    (dolist (body-form (body-of form))
-      (setq body-type (bid-check-type body-form body-type env lambda-locals)))
-    `(function ,arg-types ,body-type)))
+    (with-type-env (env env)
+      (appendf-front (type-env-vartypes env) lambda-locals)
+      (dolist (body-form (body-of form))
+        (setq body-type (bid-check-type body-form body-type env)))
+      `(function ,arg-types ,body-type))))
 
-(defmethod bid-check-type ((form walked-form) type env locals)
-  (let ((inferred-type (infer-type form env locals)))
+(defmethod bid-check-type ((form walked-form) type env)
+  (let ((inferred-type (infer-type form env)))
     (ensure-types-compatible inferred-type type)
     ;;(more-informative-type type inferred-type)
     inferred-type
     ))
 
-(defmethod bid-check-type ((form let-form) type env locals)
-  (let ((let-locals locals))
+(defmethod bid-check-type ((form let-form) type env)
+  (let ((let-locals '()))
     (dolist (binding (bindings-of form))
       (let ((binding-type
-              (infer-type (initial-value-of binding) env locals)))
+              (infer-type (initial-value-of binding) env)))
         (push (cons (name-of binding) binding-type) let-locals)))
     ;; The type of the let is the type of the last expression in body, so return that
-    (let ((body-type (unknown nil)))
-      (dolist (body-form (body-of form))
-        (setf body-type (infer-type body-form env let-locals)))
-      (ensure-types-compatible body-type type)
-      body-type)))
+    (with-type-env (env env)
+      (appendf-front (type-env-vartypes env) let-locals)
+      (let ((body-type (unknown nil)))
+        (dolist (body-form (body-of form))
+          (setf body-type (infer-type body-form env)))
+        (ensure-types-compatible body-type type)
+        body-type))))
 
-(defmethod bid-check-type ((form let*-form) type env locals)
-  (let ((let-locals locals))
+(defmethod bid-check-type ((form let*-form) type env)
+  (let ((let-locals '()))
     (dolist (binding (bindings-of form))
-      (let ((binding-type
-              (infer-type (initial-value-of binding) env let-locals)))
-        (push (cons (name-of binding) binding-type) let-locals)))
+      (with-type-env (env env)
+        (appendf-front (type-env-vartypes env) let-locals)
+        (let ((binding-type
+                (infer-type (initial-value-of binding) env)))
+          (push (cons (name-of binding) binding-type) let-locals))))
     ;; The type of the let is the type of the last expression in body, so return that
-    (let ((body-type (unknown nil)))
-      (dolist (body-form (body-of form))
-        (setf body-type (infer-type body-form env let-locals)))
-      (ensure-types-compatible body-type type)
-      body-type)))
+    (with-type-env (env env)
+        (appendf-front (type-env-vartypes env) let-locals)
+      (let ((body-type (unknown nil)))
+        (dolist (body-form (body-of form))
+          (setf body-type (infer-type body-form env)))
+        (ensure-types-compatible body-type type)
+        body-type))))
 
-(defmethod infer-type ((form setq-form) env locals)
-  (let ((var-type (or (cdr (find (name-of (variable-of form)) locals :key #'car))
+(defmethod infer-type ((form setq-form) env)
+  (let ((var-type (or (cdr (find (name-of (variable-of form))
+                                 (type-env-vartypes env)
+                                 :key #'car))
                       (error "Fix this"))))
-    (bid-check-type (value-of form) var-type env locals)))
+    (bid-check-type (value-of form) var-type env)))
 
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
@@ -331,8 +360,8 @@ PAIRS is a list of CONSes, with (old . new)."
                 (when test-not
                   (list :test-not test-not)))))))
 
-(defmethod bid-check-type ((form application-form) type env locals)
-  (let ((inferred-type (infer-type form env locals)))
+(defmethod bid-check-type ((form application-form) type env)
+  (let ((inferred-type (infer-type form env)))
     (ensure-types-compatible inferred-type type)
     (more-informative-type inferred-type type)))
 
@@ -353,7 +382,7 @@ PAIRS is a list of CONSes, with (old . new)."
 (defun extract-var-assignments* (assignments)
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
-(defmethod infer-type ((form application-form) env locals)
+(defmethod infer-type ((form application-form) env)
   (call-with-type-combinations
    (get-func-type (operator-of form) form env)
    (lambda (abstract-func-type)
@@ -371,28 +400,54 @@ PAIRS is a list of CONSes, with (old . new)."
                 ;; Check the types of the arguments
                 (loop for arg in args
                       for formal-arg-type in formal-arg-types
-                      do (bid-check-type arg formal-arg-type env locals))
+                      do (bid-check-type arg formal-arg-type env))
                 ;; Return the type of the application
                 (lastcar func-type))
               ;; else, the type of the function is generic
               ;; so, resolve the type variables to the inferred types of the arguments
               ;; finally typecheck with the resolved types.
-              (let* ((arg-types (mapcar (rcurry #'infer-type env locals) args))
+              (let* ((arg-types (mapcar (rcurry #'infer-type env) args))
                      (subst (resolve-type-vars (list (cons `(function ,arg-types ,(lastcar func-type))
                                                            func-type ))))
                      (solved-arg-types (mapcar (curry #'apply-substitution* subst) (second func-type))))
                 (loop for arg in args
                       for arg-type in solved-arg-types
-                      do (bid-check-type arg arg-type env locals))
+                      do (bid-check-type arg arg-type env))
                 ;;(break "~s" arg-types)
                 (return-from infer-type (apply-substitution* subst (lastcar func-type)))))))))))
+
+(defmethod infer-type ((form if-form) env)
+  (let ((then-type (infer-type (then-of form) env))
+        (else-type (infer-type (else-of form) env)))
+    `(or ,then-type ,else-type)))
+
+;; For local FUNCTION-BINDING-FORMs, we use their declared type.
+;; If not declared, we then use 'FUNCTION as type.
+;; For example:
+
+#|
+(flet ((sum (x y)
+         (+ x y)))
+  (declare (ftype (function (integer integer) integer) sum))
+  (mapcar #'sum
+          (the (list-of number)
+               (list 1 2 3))
+          (the (list-of integer)
+(list 3 4 5))))
+|#
+                     
+;; Use the declared type of functions in scope
+
+;;(defmethod infer-type ((form flet-form) env locals)
+;;  declarations
+  
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
         (form (if (typep form 'walked-form)
                   form
                   (walk-form form))))
-    (bid-check-type form (unknown form) env nil)))
+    (bid-check-type form (unknown form) env)))
 
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
@@ -558,7 +613,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
           (values (closer-mop:class-direct-slots class) t))
     (values slots allow-other-keys-p)))
 
-(defun check-make-instance (form env locals)
+(defun check-make-instance (form env)
   (assert (eql (operator-of form) 'make-instance))
   (let ((class-designator (first (arguments-of form))))
     (when (not (and (typep class-designator 'constant-form)
@@ -581,4 +636,4 @@ ASSIGNMENT is CONS of VAR to a TERM."
                    (let ((slot (find-if (lambda (slot)
                                           (member (value-of initkey) (closer-mop:slot-definition-initargs slot)))
                                         class-slots)))
-                     (bid-check-type initval (closer-mop:slot-definition-type slot) env locals))))))))
+                     (bid-check-type initval (closer-mop:slot-definition-type slot) env))))))))
