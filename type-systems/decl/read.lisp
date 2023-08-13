@@ -51,8 +51,7 @@
 
 ;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
 
-(load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
-
+(load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-bid "type-systems/decl/cl-types.lisp"))
 
 (declaim (ftype (function (pathname function-designator) t)
                 read-lisp-file-definitions))
