@@ -20,6 +20,9 @@
 
 (in-package :pluggable-types/bid)
 
+(defvar *use-compiler-provided-types* t
+  "When enabled, use types provided by the Lisp compiler.")
+
 (define-condition type-checking-error (simple-error)
   ())
 
@@ -95,26 +98,41 @@
   (unless (types-compatible-p type1 type2)
     (bid-type-error "A ~a cannot be used as a ~a" type1 type2)))
 
-(declaim (ftype (function ((or symbol function) type-env) t)
+(declaim (ftype (function ((or symbol function) context type-env) t)
                 get-func-type))
-(defun get-func-type (func env)
-  "Get the type of function with FNAME in ENV."
-  (let ((fname (typecase func
-                 (symbol func)
-                 (function (compiler-info:function-name func)))))
-    ;; First try to get from the read declarations
-    (dolist (funtype *funtypes*)
-      (when (eql fname (car funtype))
-        (return-from get-func-type (cdr funtype))))
-    ;; If none found, use compiler information
-    (or (compiler-info:function-type fname)
-        ;; Or a generic function type
-        '(function (&rest t) t))))
+(defgeneric get-func-type (function-designator context type-env)
+  (:documentation "Get the type for FUNCTION-DESIGNATOR in CONTEXT."))
 
-;; (get-func-type 'identity (make-type-env))
-;; (get-func-type 'concatenate (make-type-env))
-;; (get-func-type #'identity (make-type-env))
-;; (get-func-type #'+ (make-type-env))
+(defmethod get-func-type ((func function) context env)
+  (get-func-type (compiler-info:function-name func) context env))
+
+(defmethod get-func-type ((func symbol) context env)
+  "Get the type of function with FNAME in ENV."
+  ;; First try to get from the read declarations
+  (dolist (funtype *funtypes*)
+    (when (eql func (car funtype))
+      (return-from get-func-type (cdr funtype))))
+  ;; If none found, use compiler information
+  (or (and *use-compiler-provided-types*
+           (compiler-info:function-type func))
+      ;; Or a generic function type
+      '(function (&rest t) t)))
+
+;; (get-func-type 'identity t (make-type-env))
+;; (get-func-type 'concatenate t (make-type-env))
+;; (get-func-type #'identity t (make-type-env))
+;; (get-func-type #'+  t (make-type-env))
+
+(defmethod get-func-type ((func (eql 'mapcar)) (form application-form) env)
+  (assert (eql (operator-of form) 'mapcar))
+  (let* ((mapcar-args-len (length (cdr (arguments-of form))))
+         (vars (loop repeat mapcar-args-len
+                     collect (gensym)))
+         (return-type (gensym)))
+    `(all (,@vars ,return-type)
+          (function ((function ,vars ,return-type)
+                     ,@(mapcar (lambda (type) `(list-of ,type)) vars))
+                    (list-of ,return-type)))))
 
 (declaim (ftype (function (walked-form type-env) var)))
 (defun new-var (form env)
@@ -205,11 +223,11 @@ Type parameters are substituted by type variables."
 
 (defmethod infer-type ((form constant-form) env locals)
   (if (functionp (value-of form))
-      (get-func-type (value-of form) env)
+      (get-func-type (value-of form) form env)
       (type-of (value-of form))))
 
 (defmethod infer-type ((form free-function-object-form) env locals)
-  (instantiate-type (get-func-type (name-of form) env) env))
+  (instantiate-type (get-func-type (name-of form) form env) env))
 
 (defmethod infer-type ((form the-form) env locals)
   (bid-check-type (value-of form) (declared-type-of form) env locals)
@@ -332,7 +350,7 @@ PAIRS is a list of CONSes, with (old . new)."
 
 (defmethod infer-type ((form application-form) env locals)
   (call-with-type-combinations
-   (get-func-type (operator-of form) env)
+   (get-func-type (operator-of form) form env)
    (lambda (abstract-func-type)
      (let* ((args (arguments-of form))
             (func-type (instantiate-type abstract-func-type env))
@@ -435,9 +453,12 @@ ASSIGNMENT is CONS of VAR to a TERM."
     ((list (list '&rest t1) (list '&rest t2))
      (resolve-type-vars-one t1 t2))
     ((list (list '&rest rtype) _)
-     (resolve-type-vars-one rtype (car term2)))
+     (apply #'append
+      (mapcar (curry #'resolve-type-vars-one rtype)
+              term2)))
     ((list _ (list '&rest rtype))
-     (resolve-type-vars (mapcar (rcurry #'cons rtype) term1)))
+     (apply #'append
+            (mapcar (rcurry #'resolve-type-vars rtype) term1)))
     ((list (cons t1 ts1)
            (cons t2 ts2))
      (append (resolve-type-vars-one t1 t2)
