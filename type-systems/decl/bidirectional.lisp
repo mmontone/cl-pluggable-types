@@ -122,17 +122,18 @@
 (defmethod get-func-type ((func function) context env)
   (get-func-type (compiler-info:function-name func) context env))
 
-(defmethod get-func-type ((func symbol) context env)
+(defmethod get-func-type ((func-name symbol) context env)
   "Get the type of function with FNAME in ENV."
-  ;; First try to get from the read declarations
-  (dolist (funtype *funtypes*)
-    (when (eql func (car funtype))
-      (return-from get-func-type (cdr funtype))))
-  ;; If none found, use compiler information
-  (or (and *use-compiler-provided-types*
-           (compiler-info:function-type func))
-      ;; Or a generic function type
-      '(function (&rest t) t)))
+  (or
+   ;; Try from locals in ENV first
+   (cdr (assoc func-name (type-env-ftypes env)))
+   ;; Then try to get from the read declarations
+   (cdr (assoc func-name *funtypes*))
+   ;; If none found, use compiler information
+   (and *use-compiler-provided-types*
+        (compiler-info:function-type func-name))
+   ;; Or a generic function type
+   '(function (&rest t) t)))
 
 ;; (get-func-type 'identity t (make-type-env))
 ;; (get-func-type 'concatenate t (make-type-env))
@@ -327,7 +328,7 @@ Type parameters are substituted by type variables."
           (push (cons (name-of binding) binding-type) let-locals))))
     ;; The type of the let is the type of the last expression in body, so return that
     (with-type-env (env env)
-        (appendf-front (type-env-vartypes env) let-locals)
+      (appendf-front (type-env-vartypes env) let-locals)
       (let ((body-type (unknown nil)))
         (dolist (body-form (body-of form))
           (setf body-type (infer-type body-form env)))
@@ -427,20 +428,30 @@ PAIRS is a list of CONSes, with (old . new)."
 
 #|
 (flet ((sum (x y)
-         (+ x y)))
-  (declare (ftype (function (integer integer) integer) sum))
-  (mapcar #'sum
-          (the (list-of number)
-               (list 1 2 3))
-          (the (list-of integer)
+(+ x y)))
+(declare (ftype (function (integer integer) integer) sum))
+(mapcar #'sum
+(the (list-of number)
+(list 1 2 3))
+(the (list-of integer)
 (list 3 4 5))))
 |#
-                     
+
 ;; Use the declared type of functions in scope
 
-;;(defmethod infer-type ((form flet-form) env locals)
-;;  declarations
-  
+(defmethod infer-type ((form flet-form) env)
+  (let ((ftype-declarations (parse-ftype-declarations
+                             (declarations-of form))))
+    (dolist (fbinding (bindings-of form))
+      (let ((ftype (or (cdr (assoc (name-of fbinding) ftype-declarations))
+                       '(function (&rest t) t))))
+        (bid-check-type (value-of fbinding) ftype env)))
+    (let ((body-type (unknown nil)))
+      (with-type-env (env env)
+        (appendf-front (type-env-ftypes env) ftype-declarations)
+        (dolist (body-form (body-of form))
+          (setq body-type (infer-type body-form env))))
+      body-type)))
 
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
@@ -514,8 +525,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (resolve-type-vars-one t1 t2))
     ((list (list '&rest rtype) _)
      (apply #'append
-      (mapcar (curry #'resolve-type-vars-one rtype)
-              term2)))
+            (mapcar (curry #'resolve-type-vars-one rtype)
+                    term2)))
     ((list _ (list '&rest rtype))
      (apply #'append
             (mapcar (rcurry #'resolve-type-vars rtype) term1)))
@@ -627,7 +638,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
              (initargs (apply #'append (mapcar #'closer-mop:slot-definition-initargs class-slots))))
         (loop for initkey in args by #'cddr
               for initval in (rest args) by #'cddr
-              do 
+              do
                  (when (and (typep initkey 'constant-form)
                             (keywordp (value-of initkey)))
                    (unless (find (value-of initkey) initargs)
