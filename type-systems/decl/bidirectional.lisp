@@ -407,16 +407,15 @@ PAIRS is a list of CONSes, with (old . new)."
        t)
       ((cons 'function _)
        ;; A function type with arguments and return types
-       (let* ((formal-args (pluggable-types/decl::assign-types-from-function-type-2 func-type form))
-              (formal-arg-types (mapcar #'cdr formal-args)))
+       ;; Assignment of passed args to function args types:
+       (let ((args-types-assignment (pluggable-types/decl::assign-types-from-function-type-2 func-type form)))
          (if (concrete-type-p abstract-func-type)
              (progn
                ;; There are no type variables in function type.
                ;; Simply type check the arguments and result.
                ;; Check the types of the arguments
-               (loop for arg in args
-                     for formal-arg-type in formal-arg-types
-                     do (bid-check-type arg formal-arg-type env))
+               (loop for (arg . arg-type) in args-types-assignment
+                     do (bid-check-type arg arg-type env))
                ;; Return the type of the application
                (lastcar func-type))
              ;; else, the type of the function is generic
