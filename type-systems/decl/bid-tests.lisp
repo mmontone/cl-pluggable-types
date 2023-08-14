@@ -94,7 +94,11 @@
   (check-is-equalp (car (the (cons-of integer string) (cons 2 "lala")))
                    integer)
   (check-is-equalp (cdr (the (cons-of integer string) (cons 2 "lala")))
-                   string))
+                   string)
+  (check-is-subtypep (car (the list '(1 2 3)))
+                   t)
+  (check-is-subtypep (cdr (the list '(1 2 3)))
+                     list))
 
 #+nil(deftest lambda-tests ()
   (check-is-equalp (lambda (x) x) (all (a) (function (a) a)))
