@@ -477,6 +477,9 @@ PAIRS is a list of CONSes, with (old . new)."
            (compiler-info:variable-type (name-of form)))
       (unknown form)))
 
+(defmethod infer-type ((form walked-form) env)
+  (error "Implement: ~s" form))
+
 (defun check-form (form &optional env)
   (let ((env (or env (make-type-env)))
         (form (if (typep form 'walked-form)
