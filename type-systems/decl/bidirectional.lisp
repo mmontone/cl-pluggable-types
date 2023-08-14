@@ -389,38 +389,41 @@ PAIRS is a list of CONSes, with (old . new)."
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
 (defmethod infer-type ((form application-form) env)
-  (call-with-type-combinations
-   (get-func-type (operator-of form) form env)
-   (lambda (abstract-func-type)
-     (let* ((args (arguments-of form))
-            (func-type (instantiate-type abstract-func-type env))
-            (formal-args (assign-types-from-function-type func-type args)))
-
-       (call-with-types-combinations
-        (mapcar #'cdr formal-args)
-        (lambda (formal-arg-types)
-          (if (concrete-type-p abstract-func-type)
-              (progn
-                ;; There are no type variables in function type.
-                ;; Simply type check the arguments and result.
-                ;; Check the types of the arguments
-                (loop for arg in args
-                      for formal-arg-type in formal-arg-types
-                      do (bid-check-type arg formal-arg-type env))
-                ;; Return the type of the application
-                (lastcar func-type))
-              ;; else, the type of the function is generic
-              ;; so, resolve the type variables to the inferred types of the arguments
-              ;; finally typecheck with the resolved types.
-              (let* ((arg-types (mapcar (rcurry #'infer-type env) args))
-                     (subst (resolve-type-vars (list (cons `(function ,arg-types ,(lastcar func-type))
-                                                           func-type ))))
-                     (solved-arg-types (mapcar (curry #'apply-substitution* subst) (second func-type))))
-                (loop for arg in args
-                      for arg-type in solved-arg-types
-                      do (bid-check-type arg arg-type env))
-                ;;(break "~s" arg-types)
-                (return-from infer-type (apply-substitution* subst (lastcar func-type)))))))))))
+  (let* ((abstract-func-type (get-func-type (operator-of form) form env))
+         (args (arguments-of form))
+         (func-type (instantiate-type abstract-func-type env)))
+    (trivia:match func-type
+      ('function
+       ;; We have nothing to infer in this case
+       t)
+      ((cons 'function _)
+       ;; A function type with arguments and return types
+       (let* ((formal-args (assign-types-from-function-type func-type args))
+              (formal-arg-types (mapcar #'cdr formal-args)))
+         (if (concrete-type-p abstract-func-type)
+             (progn
+               ;; There are no type variables in function type.
+               ;; Simply type check the arguments and result.
+               ;; Check the types of the arguments
+               (loop for arg in args
+                     for formal-arg-type in formal-arg-types
+                     do (bid-check-type arg formal-arg-type env))
+               ;; Return the type of the application
+               (lastcar func-type))
+             ;; else, the type of the function is generic
+             ;; so, resolve the type variables to the inferred types of the arguments
+             ;; finally typecheck with the resolved types.
+             (let* ((arg-types (mapcar (rcurry #'infer-type env) args))
+                    (subst (resolve-type-vars (list (cons `(function ,arg-types ,(lastcar func-type))
+                                                          func-type ))))
+                    (solved-arg-types (mapcar (curry #'apply-substitution* subst) (second func-type))))
+               (loop for arg in args
+                     for arg-type in solved-arg-types
+                     do (bid-check-type arg arg-type env))
+               ;;(break "~s" arg-types)
+               (return-from infer-type (apply-substitution* subst (lastcar func-type)))))))
+      (_
+       (error "Type checker error. Fix this.")))))
 
 (defmethod infer-type ((form if-form) env)
   (let ((then-type (infer-type (then-of form) env))
