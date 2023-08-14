@@ -356,6 +356,36 @@ Type parameters are substituted by type variables."
       (setq body-type (infer-type body-form env)))
     body-type))
 
+(define-condition return-type-condition ()
+  ((form :initarg :form
+         :accessor return-type-form)
+   (block :initarg :block
+          :accessor return-type-block)
+   (type :initarg :type
+         :accessor return-type)))
+
+(defmethod infer-type ((form block-form) env)
+  (let ((return-types '()))
+    (handler-bind
+        ((return-type-condition
+           (lambda (c)
+             (when (eq (return-type-block c) form)
+               (push (return-type c) return-types)))))
+      (let ((body-type t))
+        (dolist (body-form (body-of form))
+          (setq body-type (infer-type body-form env)))
+        (if (null return-types)
+            body-type
+            `(or ,body-type ,@return-types))))))
+
+(defmethod infer-type ((form return-from-form) env)
+  (let ((type (infer-type (result-of form) env)))
+    (signal 'return-type-condition
+            :type type
+            :form form
+            :block (target-block-of form))
+    type))
+
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
 PAIRS is a list of CONSes, with (old . new)."
@@ -477,7 +507,7 @@ PAIRS is a list of CONSes, with (old . new)."
   (let ((body-type (unknown nil)))
     (dolist (body-form (body-of form))
       (setq body-type (infer-type body-form env)))
-    body-type))  
+    body-type))
 
 (defmethod infer-type ((form special-variable-reference-form) env)
   (or (declared-type-of form)
