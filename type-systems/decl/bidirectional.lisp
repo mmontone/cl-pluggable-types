@@ -407,7 +407,7 @@ PAIRS is a list of CONSes, with (old . new)."
        t)
       ((cons 'function _)
        ;; A function type with arguments and return types
-       (let* ((formal-args (assign-types-from-function-type func-type args))
+       (let* ((formal-args (pluggable-types/decl::assign-types-from-function-type-2 func-type form))
               (formal-arg-types (mapcar #'cdr formal-args)))
          (if (concrete-type-p abstract-func-type)
              (progn

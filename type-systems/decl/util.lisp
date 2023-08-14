@@ -104,18 +104,22 @@
                  (return))
                (push (cons arg arg-type) assignments)))
             (&key
-             ;; Convert the list of walked-forms to a plist
-             (when (not keys-in-plist-format)
-               (setf args-queue (loop for key in args-queue by #'cddr
-                                      for value in (rest args-queue) by #'cddr
-                                      collect (value-of key)
-                                      collect value))
-               (setf keys-in-plist-format t))
-             (destructuring-bind (key type) arg-type
-               (let ((arg-val (getf args-queue key)))
-                 (when arg-val
-                   (push (cons arg-val type) assignments)))
-               (alexandria:remove-from-plistf args-queue key)))
+             (if (eql arg-type '&allow-other-keys)
+                 (setq lambda-section '&allow-other-keys)
+                 (progn
+                 ;; Convert the list of walked-forms to a plist
+                 (when (not keys-in-plist-format)
+                   (setf args-queue (loop for key in args-queue by #'cddr
+                                          for value in (rest args-queue) by #'cddr
+                                          collect (value-of key)
+                                          collect value))
+                   (setf keys-in-plist-format t))
+                 (destructuring-bind (key type) arg-type
+                   (let ((arg-val (getf args-queue key)))
+                     (when arg-val
+                       (push (cons arg-val type) assignments)))
+                   (alexandria:remove-from-plistf args-queue key)))))
+            (&allow-other-keys)
             (&rest
              ;; Consume all the passed args
              (dolist (arg args-queue)
