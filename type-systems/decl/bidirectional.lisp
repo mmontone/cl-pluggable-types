@@ -63,6 +63,7 @@
   (typep x 'unknown))
 
 (defun types-compatible-p (type1 type2)
+  "Return T when TYPE1 can be used in a place that expects a TYPE2."
   (trivia:match (list type1 type2)
     ((list (cons 'values vt1) (cons 'values vt2))
      (every (curry #'apply #'types-compatible-p)
@@ -82,13 +83,16 @@
            (list 'list-of type))
      (types-compatible-p type1
                          `(cons-of ,type (list-of ,type))))
+    ((list (cons 'function _)
+           'function)
+     t)
     ((list (list 'function f1args f1ret)
            (list 'function f2args f2ret))
      ;; TODO: parse lambda lists and check args
      (types-compatible-p f2ret f1ret))
     ;; Type union
     ((list _ (cons 'or types))
-     (some (rcurry #'types-compatible-p type1) types))
+     (some (curry #'types-compatible-p type1) types))
     ;; Compatibility of composed types
     ((and (list (cons tname1 args1)
                 (cons tname2 args2))
