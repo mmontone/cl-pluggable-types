@@ -575,28 +575,18 @@ ASSIGNMENT is CONS of VAR to a TERM."
 
 ;; Type vars resolution
 
+(defun expanded-type (type)
+  (trivia:match type
+    ('list '(list-of t))
+    ('cons '(cons-of t t))
+    ('hash-table '(hash-table-of t t))
+    ('function '(function (&rest t) t))
+    (_ type)))
+
 (defun resolve-type-vars-one (term1 term2)
   (when (eql term1 term2)
     (return-from resolve-type-vars-one nil))
-  (trivia:match (list term1 term2)
-    #+nil((list (list 'function args1 ret1)
-                (list 'function args2 ret2))
-          (append (resolve-type-vars (mapcar #'cons args1 args2))
-                  (resolve-type-vars-one ret1 ret2)))
-    ;; Help the unification. Use a richer type when a less rich version is provided.
-    ((list 'list _)
-     (resolve-type-vars-one '(list-of t) term2))
-    ((list _ 'list)
-     (resolve-type-vars-one term1 '(list-of t)))
-    ((list 'cons _)
-     (resolve-type-vars-one '(cons-of t t) term2))
-    ((list _ 'cons)
-     (resolve-type-vars-one term1 '(cons-of t t)))
-    ((list 'hash-table _)
-     (resolve-type-vars-one '(hash-table-of t t) term2))
-    ((list _ 'hash-table)
-     (resolve-type-vars-one term1 '(hash-table-of t t)))
-    
+  (trivia:match (mapcar #'expanded-type (list term1 term2))
     ((list (cons 'values ts1) (cons 'values ts2))
      (resolve-type-vars (mapcar #'cons ts1 ts2)))
     ((list (cons 'values values) type)
