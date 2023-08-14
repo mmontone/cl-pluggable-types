@@ -350,6 +350,12 @@ Type parameters are substituted by type variables."
                       (error "Fix this"))))
     (bid-check-type (value-of form) var-type env)))
 
+(defmethod infer-type ((form symbol-macrolet-form) env)
+  (let ((body-type t))
+    (dolist (body-form (body-of form))
+      (setq body-type (infer-type body-form env)))
+    body-type))
+
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
 PAIRS is a list of CONSes, with (old . new)."
