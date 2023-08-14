@@ -65,6 +65,10 @@
 (defun types-compatible-p (type1 type2)
   "Return T when TYPE1 can be used in a place that expects a TYPE2."
   (trivia:match (list type1 type2)
+    ((list 't _)
+     t)
+    ((list _ 't)
+     t)
     ((list (cons 'values vt1) (cons 'values vt2))
      (every (curry #'apply #'types-compatible-p)
             (mapcar #'cons vt1 vt2)))
