@@ -270,9 +270,8 @@ Type parameters are substituted by type variables."
 
 (defmethod bid-check-type ((form constant-form) type env)
   (let ((itype (infer-type form env)))
-    (if (types-compatible-p itype type)
-        (more-informative-type type itype)
-        (bid-type-error "Types not compatible: ~a and ~a" type itype))))
+    (ensure-types-compatible itype type)
+    (more-informative-type type itype)))
 
 (defmethod infer-type ((form walked-lexical-variable-reference-form) env)
   (alexandria:if-let (local (assoc (name-of form)
