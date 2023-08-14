@@ -93,6 +93,8 @@
     ;; Type union
     ((list _ (cons 'or types))
      (some (curry #'types-compatible-p type1) types))
+    ((list (cons 'or types) _)
+     (some (rcurry #'types-compatible-p type2) types))
     ;; Compatibility of composed types
     ((and (list (cons tname1 args1)
                 (cons tname2 args2))
