@@ -327,7 +327,7 @@ Type parameters are substituted by type variables."
           (setf body-type (infer-type body-form env)))
         body-type))))
 
-(defmethod bid-check-type ((form let*-form) type env)
+(defmethod infer-type ((form let*-form) env)
   (let ((let-locals '()))
     (dolist (binding (bindings-of form))
       (with-type-env (env env)
@@ -341,7 +341,6 @@ Type parameters are substituted by type variables."
       (let ((body-type (unknown nil)))
         (dolist (body-form (body-of form))
           (setf body-type (infer-type body-form env)))
-        (ensure-types-compatible body-type type)
         body-type))))
 
 (defmethod infer-type ((form setq-form) env)
