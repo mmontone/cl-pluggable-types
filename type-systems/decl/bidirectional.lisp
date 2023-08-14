@@ -457,6 +457,10 @@ PAIRS is a list of CONSes, with (old . new)."
           (setq body-type (infer-type body-form env))))
       body-type)))
 
+(defmethod infer-type ((form walked-lexical-function-object-form) env)
+  "Get the type from the environment."
+  (get-func-type (name-of form) form env))
+
 (defmethod infer-type ((form progn-form) env)
   (let ((body-type (unknown nil)))
     (dolist (body-form (body-of form))

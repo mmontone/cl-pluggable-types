@@ -205,4 +205,17 @@
     (check-form '(flet ((hello (x)
                          x))
                   (declare (ftype (function (integer) integer) hello))
-                  (hello "lala")))))
+                  (hello "lala"))))
+
+  (check-is-equalp
+   (flet ((sum (x y)
+            (+ x y)))
+     (declare (ftype (function (integer integer) integer) sum))
+     (mapcar #'sum
+             (the (list-of integer)
+                  (list 1 2 3))
+             (the (list-of integer)
+                  (list 3 4 5))))
+   (list-of integer))
+
+  )
