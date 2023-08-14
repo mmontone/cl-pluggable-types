@@ -440,7 +440,14 @@ PAIRS is a list of CONSes, with (old . new)."
 (defun extract-var-assignments* (assignments)
   (apply #'append (mapcar #'extract-var-assignments assignments)))
 
+(defgeneric infer-application-type (operator form env))
+
 (defmethod infer-type ((form application-form) env)
+  (infer-application-type (operator-of form) form env))
+
+(defmethod infer-application-type (operator (form application-form) env)
+  (declare (ignore operator))
+
   (let* ((abstract-func-type (get-func-type (operator-of form) form env))
          (args (arguments-of form))
          (func-type (instantiate-type abstract-func-type env)))
@@ -471,8 +478,7 @@ PAIRS is a list of CONSes, with (old . new)."
                (loop for arg in args
                      for arg-type in solved-arg-types
                      do (bid-check-type arg arg-type env))
-               ;;(break "~s" arg-types)
-               (return-from infer-type (apply-substitution* subst (lastcar func-type)))))))
+               (apply-substitution* subst (lastcar func-type))))))
       (_
        (error "Type checker error. Fix this.")))))
 
@@ -706,15 +712,18 @@ ASSIGNMENT is CONS of VAR to a TERM."
           (values (closer-mop:class-direct-slots class) t))
     (values slots allow-other-keys-p)))
 
-(defun check-make-instance (form env)
-  (assert (eql (operator-of form) 'make-instance))
+(defmethod infer-application-type ((operator (eql 'make-instance))
+                                   (form application-form) env)
   (let ((class-designator (first (arguments-of form))))
     (when (not (and (typep class-designator 'constant-form)
                     (symbolp (value-of class-designator))))
-      (return-from check-make-instance))
+      (return-from infer-application-type
+        (call-next-method)))
     (let ((class (find-class (value-of class-designator) nil)))
       (unless class
-        (error "Class not defined: ~a" (value-of class-designator)))
+        (error 'type-checking-error
+               :format-control "Class not defined: ~a"
+               :format-arguments (list (value-of class-designator))))
       (let* ((args (cdr (arguments-of form)))
              (class-slots (available-class-slots class))
              (initargs (apply #'append (mapcar #'closer-mop:slot-definition-initargs class-slots))))
@@ -724,9 +733,12 @@ ASSIGNMENT is CONS of VAR to a TERM."
                  (when (and (typep initkey 'constant-form)
                             (keywordp (value-of initkey)))
                    (unless (find (value-of initkey) initargs)
-                     (error "Invalid initarg: ~s. Valid initargs: ~s"
-                            (value-of initkey) initargs))
+                     (error 'type-checking-error
+                            :format-control "Invalid initarg: ~s. Valid initargs: ~s"
+                            :format-arguments (list (value-of initkey) initargs)))
                    (let ((slot (find-if (lambda (slot)
                                           (member (value-of initkey) (closer-mop:slot-definition-initargs slot)))
                                         class-slots)))
-                     (bid-check-type initval (closer-mop:slot-definition-type slot) env))))))))
+                     (bid-check-type initval (closer-mop:slot-definition-type slot) env))))
+        ;; The type of make instance is the name of the class
+        (class-name class)))))

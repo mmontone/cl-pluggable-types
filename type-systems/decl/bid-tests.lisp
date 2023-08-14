@@ -147,49 +147,32 @@
       :type integer)))
 
 (deftest make-instance-tests ()
-  (signals error
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'lala))
-     (pluggable-types/bid::make-type-env)))
+  (check-signals-error (make-instance 'lala))
 
-  (finishes
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'simple-error))
-     (pluggable-types/bid::make-type-env)))
-
-  (signals error
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'simple-error :lala 22))
-     (pluggable-types/bid::make-type-env)))
-
-  ;; SIMPLE-ERROR slots are not properly typed unfortunately
-  #+nil(pluggable-types/bid::check-make-instance
-        (hu.dwim.walker:walk-form '(make-instance 'simple-error :format-control 22)) (pluggable-types/bid::make-type-env))
+  (check-is-equalp (make-instance 'simple-error) simple-error)
 
   ;; Invalid initargs
-  (signals error
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :foo 22)) (pluggable-types/bid::make-type-env)))
+  (check-signals-error
+   (make-instance 'simple-error :lala 22))
+
+  ;; Invalid initargs
+  (check-signals-error
+   (make-instance 'my-typed-class :foo 22))
 
   ;; Checks initargs type
-  (signals error
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x 22)) (pluggable-types/bid::make-type-env)))
+  (check-signals-error
+   (make-instance 'my-typed-class :x 22))
 
-  (signals error
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x nil))
-     (pluggable-types/bid::make-type-env)))
+  (check-signals-error
+   (make-instance 'my-typed-class :x nil))
 
-  (finishes
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :x "lala"))
-     (pluggable-types/bid::make-type-env)))
+  (check-is-equalp
+   (make-instance 'my-typed-class :x "lala")
+   my-typed-class)
 
-  (finishes
-    (pluggable-types/bid::check-make-instance
-     (hu.dwim.walker:walk-form '(make-instance 'my-typed-class :y 22))
-     (pluggable-types/bid::make-type-env))))
+  (check-is-equalp
+   (make-instance 'my-typed-class :y 22)
+   my-typed-class))
 
 (deftest flet-tests ()
   (check-is-equalp
