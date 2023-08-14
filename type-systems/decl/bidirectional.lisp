@@ -401,7 +401,10 @@ Type parameters are substituted by type variables."
     body-type))
 
 (defmethod infer-type ((form go-tag-form) env)
-  't) 
+  't)
+
+(defmethod infer-type ((form go-form) env)
+  't)
 
 (defun subst-all (pairs tree &key key test test-not)
   "Substitute all PAIRS of things in TREE.
