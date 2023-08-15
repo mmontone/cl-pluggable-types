@@ -3,7 +3,7 @@
 ;; https://jaked.org/blog/2021-09-07-Reconstructing-TypeScript-part-0
 
 (defpackage :pluggable-types/bid
-  (:use :cl :alexandria :hu.dwim.walker)
+  (:use :cl :alexandria :hu.dwim.walker :polymorphic-types)
   (:export #:check-form
            #:type-checking-error
            #:types-compatible-p)
@@ -11,12 +11,7 @@
    :pluggable-types/decl
    #:*funtypes*
    #:*vartypes*
-   #:assign-types-from-function-type
-
-   #:list-of
-   #:cons-of
-   #:all
-   #:hash-table-of))
+   #:assign-types-from-function-type))
 
 (in-package :pluggable-types/bid)
 

@@ -1,5 +1,4 @@
 (asdf:defsystem :pluggable-types-bid
-  :name "gradual"
   :author "Mariano Montone <marianomontone@gmail.com>"
   :version "0.1"
   :maintainer "Mariano Montone <marianomontone@gmail.com>"
@@ -11,7 +10,6 @@
       :components
       ((:file "trivia-functions")
        (:file "package")
-       (:file "types")
        (:file "util")
        (:file "read")
        (:file "bidirectional")
@@ -20,5 +18,7 @@
                (:require :mutils-utils)
                (:require :compiler-hooks)
                (:require :compiler-info)
+               :polymorphic-types
+               ;;:polymorphic-cl-types
                :hu.dwim.walker :trivia :alexandria
                :anaphora :arrows :cl-algebraic-data-type))

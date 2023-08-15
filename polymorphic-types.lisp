@@ -1,4 +1,17 @@
-(in-package :pluggable-types/decl)
+(defpackage :polymorphic-types
+  (:use :cl)
+  (:export
+   #:all
+   #:cons-of
+   #:list-of
+   #:alist
+   #:alist-of
+   #:hash-table-of
+   #:function-name
+   #:function-designator
+   #:ftype*))
+
+(in-package :polymorphic-types)
 
 (declaim (declaration ftype* type*))
 
@@ -51,38 +64,6 @@ if we strictly followed CLHS, then it should be the following:
 (deftype function* (args-types return-type)
   (declare (ignore args-types return-type))
   `function-designator)
-
-;; Now that type accepts both symbols and functions, and provides type checking.
-
-;; Then the typechecker:
-;; If the passed function-designator is a symbol, the type system checks that,
-;; if the symbol is the name of a function with a type, and uses that type.
-
-(declaim (ftype (function ((list-of cons) t
-                                          &key (:key function-designator)
-                                          (:test function-designator)
-                                          (:test-not function-designator))
-                          t)
-                subst-all))
-
-(defun subst-all (pairs tree &key key test test-not)
-  "Substitute all PAIRS of things in TREE.
-PAIRS is a list of CONSes, with (old . new)."
-  (if (null pairs)
-      tree
-      (let ((pair (first pairs)))
-        (apply #'subst
-               (cdr pair)
-               (car pair)
-               (subst-all (rest pairs) tree
-                          :key key :test test :test-not test-not)
-               (append
-                (when key
-                  (list :key key))
-                 (when test
-                   (list :test test))
-                 (when test-not
-                   (list :test-not test-not)))))))
 
 (deftype all (args body)
   (let ((substs (mapcar (lambda (arg)

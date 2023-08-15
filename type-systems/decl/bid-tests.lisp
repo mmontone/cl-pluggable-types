@@ -1,11 +1,5 @@
 (fiasco:define-test-package :pluggable-types/bid/tests
-  (:use :cl :fiasco :pluggable-types/bid :arrows)
-  (:import-from
-   :pluggable-types/decl
-   #:all
-   #:list-of
-   #:cons-of
-   #:hash-table-of))
+  (:use :cl :fiasco :pluggable-types/bid :arrows :polymorphic-types))
 
 (in-package :pluggable-types/bid/tests)
 
