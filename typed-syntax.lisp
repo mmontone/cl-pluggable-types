@@ -40,6 +40,17 @@
 (cl:defun remove-type-annotations (def)
   def)
 
+(cl:defun parse-type-annotations (list-of-symbols)
+  (let* ((str (prin1-to-string list-of-symbols))
+         (str (ppcre:regex-replace-all "\\<" str "#("))
+         (str (ppcre:regex-replace-all ">" str ")")))
+    (read-from-string str)))
+
+(parse-type-annotations (read-from-string "(<list-of number>)"))
+(parse-type-annotations (read-from-string "(<number>)"))
+
+(parse-type-annotations (read-from-string "(<list-of <cons-of integer string>>)"))
+
 (defmacro defun (name args &body body)
   "Define a function allowing type annotations.
 
