@@ -2,13 +2,9 @@
   (:use :cl :fiasco :pluggable-types/bid :arrows)
   (:import-from
    :pluggable-types/decl
-   #:*funtypes*
-   #:*vartypes*
-   #:assign-types-from-function-type
-
+   #:all
    #:list-of
    #:cons-of
-   #:all
    #:hash-table-of))
 
 (in-package :pluggable-types/bid/tests)
