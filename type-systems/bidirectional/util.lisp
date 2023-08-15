@@ -1,4 +1,4 @@
-(in-package :pluggable-types/decl)
+(in-package :pluggable-types/bid)
 
 (defun assign-types-from-function-type (function-type args)
   "Assign types to the ARGS being passed to the function."

@@ -2,17 +2,6 @@
 ;; https://www.youtube.com/watch?v=utyBNDj7s2w
 ;; https://jaked.org/blog/2021-09-07-Reconstructing-TypeScript-part-0
 
-(defpackage :pluggable-types/bid
-  (:use :cl :alexandria :hu.dwim.walker :polymorphic-types)
-  (:export #:check-form
-           #:type-checking-error
-           #:types-compatible-p)
-  (:import-from
-   :pluggable-types/decl
-   #:*funtypes*
-   #:*vartypes*
-   #:assign-types-from-function-type))
-
 (in-package :pluggable-types/bid)
 
 (defvar *use-compiler-provided-types* t
@@ -173,7 +162,7 @@
   "Create an instance of TYPE in ENV.
 Type parameters are substituted by type variables."
   (trivia:match type
-    ((list 'pluggable-types/decl:all type-args type)
+    ((list 'all type-args type)
      (let ((type-instance type))
        (dolist (type-arg type-args)
          (let ((type-var (new-var type-arg env)))
@@ -183,7 +172,7 @@ Type parameters are substituted by type variables."
      (cons type-name (mapcar (rcurry #'instantiate-type env) args)))
     (_ type)))
 
-;; (instantiate-type '(pluggable-types/decl::all (a) (list-of a)) (make-type-env))
+;; (instantiate-type '(all (a) (list-of a)) (make-type-env))
 ;; (instantiate-type '(all (a) (function (a) a)) (make-type-env))
 ;; (instantiate-type 'integer (make-type-env))
 ;; (instantiate-type '(function (integer) t) (make-type-env))
@@ -228,15 +217,15 @@ Type parameters are substituted by type variables."
     ((or (typep type2 'unknown)
          (typep type2 'var))
      type1)
-    ((and (pluggable-types/decl::tree-find-if (rcurry #'typep 'var)
-                                              type1)
-          (not (pluggable-types/decl::tree-find-if (rcurry #'typep 'var)
-                                                   type2)))
+    ((and (tree-find-if (rcurry #'typep 'var)
+                        type1)
+          (not (tree-find-if (rcurry #'typep 'var)
+                             type2)))
      type2)
-    ((and (pluggable-types/decl::tree-find-if (rcurry #'typep 'unknown)
-                                              type2)
-          (not (pluggable-types/decl::tree-find-if (rcurry #'typep 'unknown)
-                                                   type1)))
+    ((and (tree-find-if (rcurry #'typep 'unknown)
+                        type2)
+          (not (tree-find-if (rcurry #'typep 'unknown)
+                             type1)))
      type1)
     (t (if (types-compatible-p type1 type2)
            type1
@@ -453,7 +442,7 @@ PAIRS is a list of CONSes, with (old . new)."
       ((cons 'function _)
        ;; A function type with arguments and return types
        ;; Assignment of passed args to function args types:
-       (let ((args-types-assignment (pluggable-types/decl::assign-types-from-function-type-2 func-type form)))
+       (let ((args-types-assignment (assign-types-from-function-type-2 func-type form)))
          (if (concrete-type-p abstract-func-type)
              (progn
                ;; There are no type variables in function type.

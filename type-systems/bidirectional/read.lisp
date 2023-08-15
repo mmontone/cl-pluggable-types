@@ -1,4 +1,4 @@
-(in-package :pluggable-types/decl)
+(in-package :pluggable-types/bid)
 
 (defvar *funtypes* nil)
 (defvar *vartypes* nil)
@@ -31,16 +31,17 @@
              (setf *package* (find-package package-name)))
             ((cons 'declaim declarations)
              (dolist (declaration declarations)
-               (trivia:match declaration
-                 ((list (or 'ftype* 'ftype) ftype fname)
-                  (push (cons fname ftype) ftypes))
-                 ((list (or 'type 'type*) vartype varname)
-                  (push (cons varname vartype) vartypes)))))))))
+               (destructuring-bind (decltype &rest declargs) declaration
+                 (cond 
+                   ((member (symbol-name decltype) '("ftype" "ftype*")
+                            :test #'equalp)
+                    (destructuring-bind (ftype fname) declargs
+                      (push (cons fname ftype) ftypes)))
+                   ((member (symbol-name decltype) '("type" "type*")
+                            :test #'equalp)
+                    (destructuring-bind (vartype varname) declargs
+                      (push (cons varname vartype) vartypes)))))))))))
     (values (nreverse vartypes) (nreverse ftypes))))
-
-;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
-
-;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
 
 (defun load-type-declarations-from-file (pathname)
   (multiple-value-bind (vartypes funtypes)
@@ -48,10 +49,6 @@
     (appendf *vartypes* vartypes *vartypes*)
     (appendf *funtypes* funtypes *funtypes*)
     t))
-
-;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
-
-(load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-bid "type-systems/decl/cl-types.lisp"))
 
 (declaim (ftype (function (pathname function-designator) t)
                 read-lisp-file-definitions))
@@ -63,3 +60,12 @@
            (code (read in nil eof) (read in nil eof)))
           ((eq code eof) (values))
         (funcall func code)))))
+
+;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
+
+;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
+
+;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
+
+(load-type-declarations-from-file
+ (probe-file (asdf:system-relative-pathname :pluggable-types-bid "polymorphic-cl-types.lisp")))

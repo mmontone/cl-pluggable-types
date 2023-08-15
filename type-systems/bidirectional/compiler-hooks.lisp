@@ -1,4 +1,4 @@
-(in-package :pluggable-types/decl)
+(in-package :pluggable-types/bid)
 
 (defvar *compile-checks* nil
   "When enabled, run the type checker when a file or function is compiled.")
