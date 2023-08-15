@@ -66,6 +66,25 @@ if we strictly followed CLHS, then it should be the following:
   (declare (ignore args-types return-type))
   `function-designator)
 
+(defun subst-all (pairs tree &key key test test-not)
+  "Substitute all PAIRS of things in TREE.
+PAIRS is a list of CONSes, with (old . new)."
+  (if (null pairs)
+      tree
+      (let ((pair (first pairs)))
+        (apply #'subst
+               (cdr pair)
+               (car pair)
+               (subst-all (rest pairs) tree
+                          :key key :test test :test-not test-not)
+               (append
+                (when key
+                  (list :key key))
+                (when test
+                  (list :test test))
+                (when test-not
+                  (list :test-not test-not)))))))
+
 (deftype all (args body)
   (let ((substs (mapcar (lambda (arg)
                           (cons arg t))
