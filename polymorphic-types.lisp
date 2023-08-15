@@ -9,7 +9,8 @@
    #:hash-table-of
    #:function-name
    #:function-designator
-   #:ftype*))
+   #:ftype*
+   #:type*))
 
 (in-package :polymorphic-types)
 
