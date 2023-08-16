@@ -86,16 +86,16 @@
 (cl:defun annotate-defun (defun)
   (destructuring-bind (defun name args &body body)
       defun
-    (let ((return-type (parse-type-annotations (first body))))
+    (multiple-value-bind (return-type actual-body)
+        (extract-return-type body)
       (list* defun name (parse-type-annotations args)
-             (when (type-annotation-p return-type)
-               return-type)
-             (if (type-annotation-p return-type)
-                 (rest body)
-                 body)))))
+             return-type
+             actual-body))))
 
 (annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) x))
 (annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) <integer> x))
+
+(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) <list-of string> x))
 
 (cl:defun cl-type (type-annotation)
   (let ((cl-type (type-annotation-type type-annotation)))
@@ -112,9 +112,8 @@
         (optional-types '())
         (key '())
         (key-types '())
-        (rest nil)
-        (return nil))
-    (destructuring-bind (defun name args &body body) annotated-defun
+        (rest nil))
+    (destructuring-bind (defun name args return-type &body body) annotated-defun
       (declare (ignore defun name))
       (dolist (arg args) args
         (block next
@@ -155,10 +154,11 @@
                         (push arg optional)
                         (setf arg-position :type))
                        ((listp arg)
+                        (push (first arg) optional)
                         (let ((type
                                 (find-if #'type-annotation-p arg)))
                           (if type
-                              (push type optional)
+                              (push type optional-types)
                               (push (make-type-annotation :type 't) optional-types))))))
                     (:type
                      (when (not (type-annotation-p arg))
@@ -175,16 +175,13 @@
           (:required (push (make-type-annotation :type 't) required-types))
           (:optional (push (make-type-annotation :type 't) optional-types))
           (:key (push (make-type-annotation :type 't) key-types))))
-      (setf return (if (type-annotation-p (first body))
-                       (first body)
-                       (make-type-annotation :type 't)))
       (values (mapcar #'cons
                       (reverse required)
                       (reverse required-types))
               (mapcar #'cons
                       (reverse optional)
                       (reverse optional-types))
-              key rest return))))
+              key rest return-type))))
 
 (cl:defun extract-cl-function-type (annotated-defun)
   (multiple-value-bind (required optional key rest return)
@@ -197,6 +194,10 @@
 (extract-function-types
  (annotate-defun
   '(defun hello (x <integer>))))
+
+(extract-function-types
+ (annotate-defun
+  '(defun hello (x <integer>) <string>)))
 
 (extract-function-types
  (annotate-defun
@@ -216,7 +217,66 @@
 
 (extract-cl-function-type
  (annotate-defun
-  '(defun hello (x <integer> y <string> &optional z))))   
+  '(defun hello (x <integer> y <string> &optional z))))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional z <boolean>))))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional (z <boolean> t)))))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w))))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w) <string>)))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w) <list-of string>)))
+
+(cl:defun count-ocurrences (what sequence)
+  (loop with count := 0
+        for x across sequence
+        when (eql x what)
+          do (incf count)
+        finally (return count)))
+
+(count-ocurrences #\< (symbol-name '<asdf<asdf>>))
+
+(cl:defun extract-return-type (body)
+  (let ((first (first body)))
+    (if (or (null body)
+            (not (symbolp first))
+            (member first '(< <=))
+            (not (find #\< (symbol-name first))))
+        (values (make-type-annotation :type 't) body)
+        ;; else, a symbol that starts a type annotation
+        (let* ((rest-body body)
+               (symbol (pop rest-body))
+               (count 0)
+               (return-type (list symbol)))
+          (incf count (count-ocurrences #\< (symbol-name symbol)))
+          (decf count (count-ocurrences #\> (symbol-name symbol)))
+          (loop while (and (not (zerop count))
+                           rest-body)
+                do
+                   (setf symbol (pop rest-body))
+                   (push symbol return-type)
+                   (when (symbolp symbol)
+                     (incf count (count-ocurrences #\< (symbol-name symbol)))
+                     (decf count (count-ocurrences #\> (symbol-name symbol)))))
+          (values (first (parse-type-annotations (reverse return-type)))
+                  rest-body)))))
+
+(extract-return-type '(<list-of string> (print 'lala)))
+(extract-return-type '(<string> (print 'lala)))
+(extract-return-type '(<list-of (cons-of number integer)> (print 'lala)))
+(parse-type-annotations (extract-return-type '(<list-of (cons-of number integer)> (print 'lala))))
 
 (defmacro defun (name args &body body)
   "Define a function allowing type annotations.
