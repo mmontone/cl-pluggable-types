@@ -37,14 +37,13 @@
 (defstruct type-annotation
   type)
 
-(cl:defun remove-type-annotations (def)
-  (let ((annotated-def (parse-type-annotations def)))
-    (destructuring-bind (def name annotated-args &body annotated-body)
-        annotated-def
-      `(,def ,name ,(tree-remove-if #'type-annotation-p annotated-args)
-         ,@(if (type-annotation-p (first annotated-body))
-               (rest annotated-body)
-               annotated-body)))))
+(cl:defun remove-type-annotations (annotated-def)
+  (destructuring-bind (def name annotated-args &body annotated-body)
+      annotated-def
+    `(,def ,name ,(tree-remove-if #'type-annotation-p annotated-args)
+       ,@(if (type-annotation-p (first annotated-body))
+             (rest annotated-body)
+             annotated-body))))
 
 (remove-type-annotations
  '(defun hello (x <integer>)
@@ -297,10 +296,9 @@ Example:
 (<t>:defun sum (x <integer> y <integer>) <integer>
     (+ x y))
 "
-  (let ((function-type (extract-cl-function-type
-                        (annotate-defun `(defun ,name ,args ,@body))))
-        (untyped-definition (remove-type-annotations
-                             `(defun ,name ,args ,@body))))
+  (let* ((annotated-def (annotate-defun `(defun ,name ,args ,@body)))
+         (function-type (extract-cl-function-type annotated-def))
+         (untyped-definition (remove-type-annotations annotated-def)))
     `(progn
        (declaim (ftype ,function-type ,name))
        ,(destructuring-bind (defun name args &body body) untyped-definition
