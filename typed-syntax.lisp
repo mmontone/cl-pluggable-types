@@ -43,8 +43,8 @@
         annotated-def
       `(,def ,name ,(tree-remove-if #'type-annotation-p annotated-args)
          ,@(if (type-annotation-p (first annotated-body))
-              (rest annotated-body)
-              annotated-body)))))
+               (rest annotated-body)
+               annotated-body)))))
 
 (remove-type-annotations
  '(defun hello (x <integer>)
@@ -59,12 +59,16 @@
    (first x)))
 
 (remove-type-annotations
+ '(defun hello (x <list-of string>) <list-of string>
+   (first x)))
+
+(remove-type-annotations
  '(defun hello (x <list-of string> &optional (y <string> "lala")) <string>
-   (first x)))   
+   (first x)))
 
 (cl:defun parse-type-annotations (list-of-symbols)
   (let* ((str (prin1-to-string list-of-symbols))
-         (str (ppcre:regex-replace-all "\\<" str "#S(TYPE-ANNOTATION :TYPE ("))
+         (str (ppcre:regex-replace-all "\\<" str "#S(TYPED-SYNTAX::TYPE-ANNOTATION :TYPE ("))
          (str (ppcre:regex-replace-all ">" str "))")))
     (read-from-string str)))
 
@@ -188,7 +192,7 @@
       (extract-function-types annotated-defun)
     `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required)
                 ,@(when optional
-                  (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional))))
+                    (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional))))
                ,(cl-type return))))
 
 (extract-function-types
@@ -239,6 +243,11 @@
  (annotate-defun
   '(defun hello (x <integer> y <string> &optional (z <boolean> t) w) <list-of string>)))
 
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional (z <list-of boolean> t) w) <list-of string>
+    (< 2 4))))
+
 (cl:defun count-ocurrences (what sequence)
   (loop with count := 0
         for x across sequence
@@ -288,11 +297,12 @@ Example:
 (<t>:defun sum (x <integer> y <integer>) <integer>
     (+ x y))
 "
-  (let ((function-type (extract-function-type
-                        `(defun ,name ,args ,@body)))
+  (let ((function-type (extract-cl-function-type
+                        (annotate-defun `(defun ,name ,args ,@body))))
         (untyped-definition (remove-type-annotations
                              `(defun ,name ,args ,@body))))
     `(progn
-       (declaim (ftype ,function-type) ,name)
-       ,(destructuring-bind (name args &body body) untyped-definition
+       (declaim (ftype ,function-type ,name))
+       ,(destructuring-bind (defun name args &body body) untyped-definition
+          (declare (ignore defun))
           `(cl:defun ,name ,args ,@body)))))
