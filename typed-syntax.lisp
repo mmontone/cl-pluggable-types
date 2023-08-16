@@ -111,6 +111,7 @@
         (optional '())
         (optional-types '())
         (key '())
+        (key-types '())
         (rest nil)
         (return nil))
     (destructuring-bind (defun name args &body body) annotated-defun
@@ -168,6 +169,12 @@
                      (setf arg-position arg)))))
               (:key (error "TODO"))
               (:rest (error "TODO"))))))
+      ;; If at type position, then complete the types with T type
+      (when (eql arg-position :type)
+        (ecase status
+          (:required (push (make-type-annotation :type 't) required-types))
+          (:optional (push (make-type-annotation :type 't) optional-types))
+          (:key (push (make-type-annotation :type 't) key-types))))
       (setf return (if (type-annotation-p (first body))
                        (first body)
                        (make-type-annotation :type 't)))
@@ -182,7 +189,9 @@
 (cl:defun extract-cl-function-type (annotated-defun)
   (multiple-value-bind (required optional key rest return)
       (extract-function-types annotated-defun)
-    `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required))
+    `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required)
+                ,@(when optional
+                  (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional))))
                ,(cl-type return))))
 
 (extract-function-types
@@ -201,10 +210,13 @@
  (annotate-defun
   '(defun hello (x <integer> y <string> &optional z))))
 
-(extract-cl-function-type (annotate-defun
-  '(defun hello (x <integer> y <string>)))) 
-    
-    
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string>))))
+
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional z))))   
 
 (defmacro defun (name args &body body)
   "Define a function allowing type annotations.
