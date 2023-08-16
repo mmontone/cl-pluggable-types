@@ -75,6 +75,137 @@
 
 (parse-type-annotations (read-from-string "(<list-of (cons-of integer string)>)"))
 
+(parse-type-annotations (read-from-string "(defun hello (x <integer> y <string>) <integer>
+(print (> 2 3)))"))
+
+(parse-type-annotations (read-from-string "(> 2 3)"))
+(parse-type-annotations (read-from-string "(string> 2 3)"))
+
+(parse-type-annotations '<string>)
+
+(cl:defun annotate-defun (defun)
+  (destructuring-bind (defun name args &body body)
+      defun
+    (let ((return-type (parse-type-annotations (first body))))
+      (list* defun name (parse-type-annotations args)
+             (when (type-annotation-p return-type)
+               return-type)
+             (if (type-annotation-p return-type)
+                 (rest body)
+                 body)))))
+
+(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) x))
+(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) <integer> x))
+
+(cl:defun cl-type (type-annotation)
+  (let ((cl-type (type-annotation-type type-annotation)))
+    (if (and (listp cl-type) (null (cdr cl-type)))
+        (car cl-type)
+        cl-type)))
+
+(cl:defun extract-function-types (annotated-defun)
+  (let ((status :required)
+        (arg-position :arg)
+        (required '())
+        (required-types '())
+        (optional '())
+        (optional-types '())
+        (key '())
+        (rest nil)
+        (return nil))
+    (destructuring-bind (defun name args &body body) annotated-defun
+      (declare (ignore defun name))
+      (dolist (arg args) args
+        (block next
+          (cl:flet ((maybe-switch-status ()
+                      (when (eql arg '&optional)
+                        (setf status :optional)
+                        (setf arg-position :arg)
+                        (return-from next))
+                      (when (eql arg '&key)
+                        (setf status :key)
+                        (setf arg-position :arg)
+                        (return-from next))
+                      (when (eql arg '&rest)
+                        (setf status :rest)
+                        (setf arg-position :arg)
+                        (return-from next))))
+            (ecase status
+              (:required
+               (maybe-switch-status)
+               (ecase arg-position
+                 (:arg
+                  (push arg required)
+                  (setf arg-position :type))
+                 (:type
+                  (if (not (type-annotation-p arg))
+                      (progn
+                        (push (make-type-annotation :type 't) required-types)
+                        (push arg required))
+                      (progn
+                        (push arg required-types)
+                        (setf arg-position :arg))))))
+              (:optional
+               (tagbody retry
+                  (ecase arg-position
+                    (:arg
+                     (cond
+                       ((atom arg)
+                        (push arg optional)
+                        (setf arg-position :type))
+                       ((listp arg)
+                        (let ((type
+                                (find-if #'type-annotation-p arg)))
+                          (if type
+                              (push type optional)
+                              (push (make-type-annotation :type 't) optional-types))))))
+                    (:type
+                     (when (not (type-annotation-p arg))
+                       (push (make-type-annotation :type 't) optional-types)
+                       (setf arg-position arg)
+                       (go retry))
+                     (push arg optional-types)
+                     (setf arg-position arg)))))
+              (:key (error "TODO"))
+              (:rest (error "TODO"))))))
+      (setf return (if (type-annotation-p (first body))
+                       (first body)
+                       (make-type-annotation :type 't)))
+      (values (mapcar #'cons
+                      (reverse required)
+                      (reverse required-types))
+              (mapcar #'cons
+                      (reverse optional)
+                      (reverse optional-types))
+              key rest return))))
+
+(cl:defun extract-cl-function-type (annotated-defun)
+  (multiple-value-bind (required optional key rest return)
+      (extract-function-types annotated-defun)
+    `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required))
+               ,(cl-type return))))
+
+(extract-function-types
+ (annotate-defun
+  '(defun hello (x <integer>))))
+
+(extract-function-types
+ (annotate-defun
+  '(defun hello (x <integer> y <string>))))
+
+(extract-function-types
+ (annotate-defun
+  '(defun hello (x y <string>))))
+
+(extract-function-types
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &optional z))))
+
+(extract-cl-function-type (annotate-defun
+  '(defun hello (x <integer> y <string>)))) 
+    
+    
+
 (defmacro defun (name args &body body)
   "Define a function allowing type annotations.
 
