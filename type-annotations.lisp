@@ -34,6 +34,11 @@
              annotated-body))))
 
 (cl:defun parse-type-annotations (list-of-symbols)
+  ;; This is the hack for parsing the annotations syntax
+  ;; Replace #\< by #S(type-annotation :type
+  ;; and #\> by #\), that closes the type-annotation expression.
+  ;; For instance, '<integer>' is replaced to '#s(type-annotation :type 'integer)'.
+  ;; Then READ-FROM-STRING is used to obtain the type-annotation structures.
   (let* ((str (prin1-to-string list-of-symbols))
          (str (ppcre:regex-replace-all "\\<" str "#S(TYPE-ANNOTATIONS::TYPE-ANNOTATION :TYPE ("))
          (str (ppcre:regex-replace-all ">" str "))")))
