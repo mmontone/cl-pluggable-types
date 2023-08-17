@@ -108,3 +108,12 @@
 (extract-return-type '(<string> (print 'lala)))
 (extract-return-type '(<list-of (cons-of number integer)> (print 'lala)))
 (parse-type-annotations (extract-return-type '(<list-of (cons-of number integer)> (print 'lala))))
+
+(<t>:defun test1 (x <integer> y <integer>) <integer>
+  (+ x y))
+
+(<t>:defun test2 (x <integer> &key (y <integer> 22))
+  (+ x y))
+
+(<t>:defun test3 (x <integer> &rest more <integer>)
+  (+ x y))

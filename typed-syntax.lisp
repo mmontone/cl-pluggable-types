@@ -11,10 +11,6 @@
 
 (in-package :typed-syntax)
 
-(cl:defun extract-function-type (def)
-  ;; TODO
-  `(function (&rest t) t))
-
 (cl:defun tree-remove-if (predicate tree)
   (if (atom tree)
       (if (funcall predicate tree)
@@ -67,7 +63,9 @@
         (optional-types '())
         (key '())
         (key-types '())
-        (rest nil))
+        (rest nil)
+        (rest-type (make-type-annotation :type 't))
+        (allow-other-keys nil))
     (destructuring-bind (defun name args return-type &body body) annotated-defun
       (declare (ignore defun name))
       (dolist (arg args) args
@@ -84,7 +82,10 @@
                       (when (eql arg '&rest)
                         (setf status :rest)
                         (setf arg-position :arg)
-                        (return-from next))))
+                        (return-from next))
+                      (when (eql arg '&allow-other-keys)
+                        (setf status :allow-other-keys)
+                        (setf allow-other-keys t))))
             (ecase status
               (:required
                (maybe-switch-status)
@@ -144,7 +145,11 @@
                        (go retry))
                      (push arg key-types)
                      (setf arg-position arg)))))
-              (:rest (error "TODO"))))))
+              (:rest (ecase arg-position
+                       (:arg (setf rest arg))
+                       (:type
+                        (assert (type-annotation-p arg))
+                        (setf rest-type arg))))))))
       ;; If at type position, then complete the types with T type
       (when (eql arg-position :type)
         (ecase status
@@ -157,25 +162,30 @@
               (mapcar #'cons
                       (reverse optional)
                       (reverse optional-types))
+              (when rest (cons rest rest-type))
               (mapcar #'cons
                       (reverse key)
                       (reverse key-types))
-              rest return-type))))
+              allow-other-keys return-type))))
 
 (cl:defun make-keyword (symbol)
   (intern (string-upcase (string symbol)) :keyword))
 
 (cl:defun extract-cl-function-type (annotated-defun)
-  (multiple-value-bind (required optional key rest return)
+  (multiple-value-bind (required optional rest key allow-other-keys return)
       (extract-function-types annotated-defun)
     `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required)
                 ,@(when optional
                     (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional)))
+                ,@(when rest
+                    (list '&rest (cl-type (cdr rest))))
                 ,@(when key
                     (list* '&key (mapcar (lambda (keyarg)
                                            (list (make-keyword (car keyarg))
                                                  (cl-type (cdr keyarg))))
                                          key))))
+               ,@(when allow-other-keys
+                   (list '&allow-other-keys))
                ,(cl-type return))))
 
 (cl:defun count-ocurrences (what sequence)
