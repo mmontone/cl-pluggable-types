@@ -1,3 +1,37 @@
+;;; type-annotations --- Support for inline type annotations.
+;;
+;; Copyright (C) 2023 Mariano Montone. All rights reserved.
+;;
+;; This work is licensed under the terms of the MIT license.
+;; For a copy, see <https://opensource.org/licenses/MIT>.
+;;
+;; Author: Mariano Montone <marianomontone@gmail.com>
+;; Version: 0.1
+;; Requires: mutils
+;;
+;;; Commentary:
+;;
+;; Support for inline type annotations.
+;; Versions of CL definitions with support for inline type annotations are provided.
+;; Typed DEFUN, DEFVAR, DEFPARAMETER, etc.
+;;
+;; Type annotations appear after variables and arguments names, and are enclosed between sharp brackets, like: `<type-name>`.
+;;
+;; Usage:
+;;
+;; Use the inline type version of the CL equivalent definer, and inline type annotations:
+;;
+;;     (<t>:defun sum (x <integer> y <integer>) <integer>
+;;        (+ x y))
+;;
+;; Annotated definitions are macro-expanded to top-level type declamations:
+;;
+;;    (PROGN
+;;        (DECLAIM (FTYPE (FUNCTION (INTEGER INTEGER) INTEGER) SUM))
+;;        (COMMON-LISP:DEFUN SUM (X Y) (+ X Y)))
+;;
+;;; Code:
+
 (defpackage :type-annotations
   (:nicknames :<t>)
   (:use :cl)
@@ -297,3 +331,5 @@ The macro is expanded to a top-level type declamation plus a normal DEFPARAMETER
            (declaim (type ,(cl-type (car annot-init)) ,name))
            (cl:defparameter ,name ,@(rest annot-init)))
         `(cl:defparameter ,name ,@annot-init))))
+
+(provide :type-annotations)
