@@ -235,6 +235,12 @@ Example:
 
     (<t>:defun sum (x <integer> y <integer>) <integer>
         (+ x y))
+
+The macro is expanded to a top-level type declamation plus a normal DEFUN:
+
+    (PROGN
+         (DECLAIM (FTYPE (FUNCTION (INTEGER INTEGER) INTEGER) SUM))
+         (COMMON-LISP:DEFUN SUM (X Y) (+ X Y)))
 "
   (let* ((annotated-def (annotate-defun `(defun ,name ,args ,@body)))
          (function-type (extract-cl-function-type annotated-def))
@@ -254,6 +260,10 @@ Example:
 
     (<t>:defvar *my-var* <integer> 22)
 
+The macro is expanded to a top-level type declamation plus a normal DEFVAR:
+
+    (PROGN (DECLAIM (TYPE INTEGER *MY-VAR*))
+           (COMMON-LISP:DEFVAR *MY-VAR* 22))
 "
   (let ((annot-init (parse-type-annotations init)))
     (if (type-annotation-p (car annot-init))
@@ -271,6 +281,10 @@ Example:
 
     (<t>:defparameter *my-var* <integer> 22)
 
+The macro is expanded to a top-level type declamation plus a normal DEFPARAMETER:
+
+    (PROGN (DECLAIM (TYPE INTEGER *MY-VAR*))
+           (COMMON-LISP:DEFPARAMETER *MY-VAR* 22))
 "
   (let ((annot-init (parse-type-annotations init)))
     (if (type-annotation-p (car annot-init))
