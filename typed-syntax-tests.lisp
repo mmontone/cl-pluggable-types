@@ -121,10 +121,14 @@
 (<t>:defun test3 (x <integer> &rest all &key y)
   (apply #'+ x all))
 
+(<t>:defun test3 (x <integer> &key y <integer> w <string>) <integer>
+  (+ x y w))
+
 (<t>:defun test3 (x <integer> &rest all &key y &allow-other-keys)
   (apply #'+ x all))
 
 (<t>:defun test3 (x <integer> &optional z <integer> w <string>)
   (apply #'+ x all))
 
-
+(<t>:defvar *my-hash-table* <hash-table> (make-hash-table)
+            "My hash table")

@@ -225,7 +225,7 @@
                   rest-body)))))
 
 (defmacro defun (name args &body body)
-  "Define a function allowing type annotations.
+  "Typed annotated DEFUN.
 
 Syntax:
 
@@ -242,3 +242,20 @@ Example:
        ,(destructuring-bind (defun name args &body body) untyped-definition
           (declare (ignore defun))
           `(cl:defun ,name ,args ,@body)))))
+
+(defmacro defvar (name &rest init)
+  "Type annotated DEFVAR.
+
+Syntax: a type annotation is accepted after the variable name.
+
+Example:
+
+(<t>:defvar *my-var* <integer> 22)
+
+"
+  (let ((annot-init (parse-type-annotations init)))
+    (if (type-annotation-p (car annot-init))
+        `(progn
+           (declaim (type ,(cl-type (car annot-init)) ,name))
+           (cl:defvar ,name ,@(rest annot-init)))
+        `(cl:defvar ,name ,@annot-init))))
