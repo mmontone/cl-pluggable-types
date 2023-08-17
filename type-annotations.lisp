@@ -7,7 +7,6 @@
 ;;
 ;; Author: Mariano Montone <marianomontone@gmail.com>
 ;; Version: 0.1
-;; Requires: mutils
 ;;
 ;;; Commentary:
 ;;
