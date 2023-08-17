@@ -117,3 +117,14 @@
 
 (<t>:defun test3 (x <integer> &rest more <string>)
   (apply #'+ x more))
+
+(<t>:defun test3 (x <integer> &rest all &key y)
+  (apply #'+ x all))
+
+(<t>:defun test3 (x <integer> &rest all &key y &allow-other-keys)
+  (apply #'+ x all))
+
+(<t>:defun test3 (x <integer> &optional z <integer> w <string>)
+  (apply #'+ x all))
+
+

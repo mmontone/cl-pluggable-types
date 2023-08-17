@@ -67,98 +67,99 @@
         (rest-type (make-type-annotation :type 't))
         (allow-other-keys nil))
     (destructuring-bind (defun name args return-type &body body) annotated-defun
-      (declare (ignore defun name))
+      (declare (ignore defun name body))
       (dolist (arg args) args
         (block next
-          (cl:flet ((maybe-switch-status ()
-                      (when (eql arg '&optional)
-                        (setf status :optional)
-                        (setf arg-position :arg)
-                        (return-from next))
-                      (when (eql arg '&key)
-                        (setf status :key)
-                        (setf arg-position :arg)
-                        (return-from next))
-                      (when (eql arg '&rest)
-                        (setf status :rest)
-                        (setf arg-position :arg)
-                        (return-from next))
-                      (when (eql arg '&allow-other-keys)
-                        (setf status :allow-other-keys)
-                        (setf allow-other-keys t))))
-            (ecase status
-              (:required
-               (maybe-switch-status)
-               (ecase arg-position
-                 (:arg
-                  (push arg required)
-                  (setf arg-position :type))
-                 (:type
-                  (if (not (type-annotation-p arg))
-                      (progn
-                        (push (make-type-annotation :type 't) required-types)
-                        (push arg required))
-                      (progn
-                        (push arg required-types)
-                        (setf arg-position :arg))))))
-              (:optional
-               (tagbody retry
-                  (ecase arg-position
-                    (:arg
-                     (cond
-                       ((atom arg)
-                        (push arg optional)
-                        (setf arg-position :type))
-                       ((listp arg)
-                        (push (first arg) optional)
-                        (let ((type
-                                (find-if #'type-annotation-p arg)))
-                          (if type
-                              (push type optional-types)
-                              (push (make-type-annotation :type 't) optional-types))))))
-                    (:type
-                     (when (not (type-annotation-p arg))
-                       (push (make-type-annotation :type 't) optional-types)
-                       (setf arg-position arg)
-                       (go retry))
-                     (push arg optional-types)
-                     (setf arg-position arg)))))
-              (:key
-               (tagbody retry
-                  (ecase arg-position
-                    (:arg
-                     (cond
-                       ((atom arg)
-                        (push arg key)
-                        (setf arg-position :type))
-                       ((listp arg)
-                        (push (first arg) key)
-                        (let ((type
-                                (find-if #'type-annotation-p arg)))
-                          (if type
-                              (push type key-types)
-                              (push (make-type-annotation :type 't) key-types))))))
-                    (:type
-                     (when (not (type-annotation-p arg))
-                       (push (make-type-annotation :type 't) key-types)
-                       (setf arg-position arg)
-                       (go retry))
-                     (push arg key-types)
-                     (setf arg-position arg)))))
-              (:rest (ecase arg-position
-                       (:arg
-                        (setf rest arg)
-                        (setf arg-position :type))
-                       (:type
-                        (assert (type-annotation-p arg))
-                        (setf rest-type arg))))))))
+          (when (eql arg '&optional)
+            (setf status :optional)
+            (setf arg-position :arg)
+            (return-from next))
+          (when (eql arg '&key)
+            (setf status :key)
+            (setf arg-position :arg)
+            (return-from next))
+          (when (eql arg '&rest)
+            (setf status :rest)
+            (setf arg-position :arg)
+            (return-from next))
+          (when (eql arg '&allow-other-keys)
+            (setf status :allow-other-keys)
+            (setf allow-other-keys t))
+          (ecase status
+            (:required
+             (ecase arg-position
+               (:arg
+                (push arg required)
+                (setf arg-position :type))
+               (:type
+                (if (not (type-annotation-p arg))
+                    (progn
+                      (push (make-type-annotation :type 't) required-types)
+                      (push arg required))
+                    (progn
+                      (push arg required-types)
+                      (setf arg-position :arg))))))
+            (:optional
+             (tagbody retry
+                (ecase arg-position
+                  (:arg
+                   (cond
+                     ((atom arg)
+                      (push arg optional)
+                      (setf arg-position :type))
+                     ((listp arg)
+                      (push (first arg) optional)
+                      (let ((type
+                              (find-if #'type-annotation-p arg)))
+                        (if type
+                            (push type optional-types)
+                            (push (make-type-annotation :type 't) optional-types))))))
+                  (:type
+                   (when (not (type-annotation-p arg))
+                     (push (make-type-annotation :type 't) optional-types)
+                     (setf arg-position :arg)
+                     (go retry))
+                   (push arg optional-types)
+                   (setf arg-position :arg)))))
+            (:key
+             (tagbody retry
+                (ecase arg-position
+                  (:arg
+                   (cond
+                     ((atom arg)
+                      (push arg key)
+                      (setf arg-position :type))
+                     ((listp arg)
+                      (push (first arg) key)
+                      (let ((type
+                              (find-if #'type-annotation-p arg)))
+                        (if type
+                            (push type key-types)
+                            (push (make-type-annotation :type 't) key-types))))))
+                  (:type
+                   (when (not (type-annotation-p arg))
+                     (push (make-type-annotation :type 't) key-types)
+                     (setf arg-position :arg)
+                     (go retry))
+                   (push arg key-types)
+                   (setf arg-position :arg)))))
+            (:rest (ecase arg-position
+                     (:arg
+                      (setf rest arg)
+                      (setf arg-position :type))
+                     (:type
+                      (when (type-annotation-p arg)
+                        (setf rest-type arg))
+                      (setf arg-position :arg))))
+            (:allow-other-keys))))
       ;; If at type position, then complete the types with T type
       (when (eql arg-position :type)
         (ecase status
           (:required (push (make-type-annotation :type 't) required-types))
           (:optional (push (make-type-annotation :type 't) optional-types))
+          (:rest nil)
           (:key (push (make-type-annotation :type 't) key-types))
-          (:rest nil)))
+          (:allow-other-keys nil)))
       (values (mapcar #'cons
                       (reverse required)
                       (reverse required-types))
