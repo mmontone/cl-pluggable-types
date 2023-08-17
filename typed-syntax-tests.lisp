@@ -115,5 +115,5 @@
 (<t>:defun test2 (x <integer> &key (y <integer> 22))
   (+ x y))
 
-(<t>:defun test3 (x <integer> &rest more <integer>)
-  (+ x y))
+(<t>:defun test3 (x <integer> &rest more <string>)
+  (apply #'+ x more))

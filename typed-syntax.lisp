@@ -146,7 +146,9 @@
                      (push arg key-types)
                      (setf arg-position arg)))))
               (:rest (ecase arg-position
-                       (:arg (setf rest arg))
+                       (:arg
+                        (setf rest arg)
+                        (setf arg-position :type))
                        (:type
                         (assert (type-annotation-p arg))
                         (setf rest-type arg))))))))
@@ -155,7 +157,8 @@
         (ecase status
           (:required (push (make-type-annotation :type 't) required-types))
           (:optional (push (make-type-annotation :type 't) optional-types))
-          (:key (push (make-type-annotation :type 't) key-types))))
+          (:key (push (make-type-annotation :type 't) key-types))
+          (:rest nil)))
       (values (mapcar #'cons
                       (reverse required)
                       (reverse required-types))
