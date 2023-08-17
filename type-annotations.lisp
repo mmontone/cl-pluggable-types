@@ -1,4 +1,4 @@
-(defpackage :typed-syntax
+(defpackage :type-annotations
   (:nicknames :<t>)
   (:use :cl)
   (:shadow
@@ -9,7 +9,7 @@
    #:defvar
    #:defparameter))
 
-(in-package :typed-syntax)
+(in-package :type-annotations)
 
 (cl:defun tree-remove-if (predicate tree)
   (if (atom tree)
@@ -35,7 +35,7 @@
 
 (cl:defun parse-type-annotations (list-of-symbols)
   (let* ((str (prin1-to-string list-of-symbols))
-         (str (ppcre:regex-replace-all "\\<" str "#S(TYPED-SYNTAX::TYPE-ANNOTATION :TYPE ("))
+         (str (ppcre:regex-replace-all "\\<" str "#S(TYPE-ANNOTATIONS::TYPE-ANNOTATION :TYPE ("))
          (str (ppcre:regex-replace-all ">" str "))")))
     (read-from-string str)))
 

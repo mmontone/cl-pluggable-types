@@ -1,4 +1,4 @@
-(in-package :typed-syntax)
+(in-package :type-annotations)
 
 (tree-remove-if (lambda (x) (eql 'foo x)) '(foo))
 (tree-remove-if (lambda (x) (eql 'foo x)) '(foo foo))
