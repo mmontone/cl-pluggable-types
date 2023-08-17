@@ -26,14 +26,6 @@
             cdr
             (cons car cdr)))))
 
-(tree-remove-if (lambda (x) (eql 'foo x)) '(foo))
-(tree-remove-if (lambda (x) (eql 'foo x)) '(foo foo))
-(tree-remove-if (lambda (x) (eql 'foo x)) '((foo foo)))
-(tree-remove-if (lambda (x) (eql 'foo x)) '(x (foo foo)))
-(tree-remove-if (lambda (x) (eql 'foo x)) '(x (y foo foo)))
-
-(tree-remove-if #'vectorp '(x #(integer) y #(string)))
-
 (defstruct type-annotation
   type)
 
@@ -45,46 +37,11 @@
              (rest annotated-body)
              annotated-body))))
 
-(remove-type-annotations
- '(defun hello (x <integer>)
-   (print "hello")))
-
-(remove-type-annotations
- '(defun hello (x <integer> y <string>)
-   (print "hello")))
-
-(remove-type-annotations
- '(defun hello (x <list-of string>) <string>
-   (first x)))
-
-(remove-type-annotations
- '(defun hello (x <list-of string>) <list-of string>
-   (first x)))
-
-(remove-type-annotations
- '(defun hello (x <list-of string> &optional (y <string> "lala")) <string>
-   (first x)))
-
 (cl:defun parse-type-annotations (list-of-symbols)
   (let* ((str (prin1-to-string list-of-symbols))
          (str (ppcre:regex-replace-all "\\<" str "#S(TYPED-SYNTAX::TYPE-ANNOTATION :TYPE ("))
          (str (ppcre:regex-replace-all ">" str "))")))
     (read-from-string str)))
-
-(parse-type-annotations (read-from-string "(<list-of number>)"))
-(parse-type-annotations (read-from-string "(<number>)"))
-
-(parse-type-annotations (read-from-string "(<list-of <cons-of integer string>>)"))
-
-(parse-type-annotations (read-from-string "(<list-of (cons-of integer string)>)"))
-
-(parse-type-annotations (read-from-string "(defun hello (x <integer> y <string>) <integer>
-(print (> 2 3)))"))
-
-(parse-type-annotations (read-from-string "(> 2 3)"))
-(parse-type-annotations (read-from-string "(string> 2 3)"))
-
-(parse-type-annotations '<string>)
 
 (cl:defun annotate-defun (defun)
   (destructuring-bind (defun name args &body body)
@@ -94,11 +51,6 @@
       (list* defun name (parse-type-annotations args)
              return-type
              actual-body))))
-
-(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) x))
-(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) <integer> x))
-
-(annotate-defun '(defun my-func (x <integer> &optional (y <list-of string>)) <list-of string> x))
 
 (cl:defun cl-type (type-annotation)
   (let ((cl-type (type-annotation-type type-annotation)))
@@ -194,67 +146,12 @@
                     (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional))))
                ,(cl-type return))))
 
-(extract-function-types
- (annotate-defun
-  '(defun hello (x <integer>))))
-
-(extract-function-types
- (annotate-defun
-  '(defun hello (x <integer>) <string>)))
-
-(extract-function-types
- (annotate-defun
-  '(defun hello (x <integer> y <string>))))
-
-(extract-function-types
- (annotate-defun
-  '(defun hello (x y <string>))))
-
-(extract-function-types
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional z))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string>))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional z))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional z <boolean>))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional (z <boolean> t)))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w))))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w) <string>)))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional (z <boolean> t) w) <list-of string>)))
-
-(extract-cl-function-type
- (annotate-defun
-  '(defun hello (x <integer> y <string> &optional (z <list-of boolean> t) w) <list-of string>
-    (< 2 4))))
-
 (cl:defun count-ocurrences (what sequence)
   (loop with count := 0
         for x across sequence
         when (eql x what)
           do (incf count)
         finally (return count)))
-
-(count-ocurrences #\< (symbol-name '<asdf<asdf>>))
 
 (cl:defun extract-return-type (body)
   (let ((first (first body)))
@@ -280,11 +177,6 @@
                      (decf count (count-ocurrences #\> (symbol-name symbol)))))
           (values (first (parse-type-annotations (reverse return-type)))
                   rest-body)))))
-
-(extract-return-type '(<list-of string> (print 'lala)))
-(extract-return-type '(<string> (print 'lala)))
-(extract-return-type '(<list-of (cons-of number integer)> (print 'lala)))
-(parse-type-annotations (extract-return-type '(<list-of (cons-of number integer)> (print 'lala))))
 
 (defmacro defun (name args &body body)
   "Define a function allowing type annotations.
