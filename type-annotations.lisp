@@ -1,8 +1,8 @@
 (defpackage :type-annotations
   (:nicknames :<t>)
   (:use :cl)
-  (:shadow
-   #:defun #:flet #:defvar #:defparameter)
+  (:shadow #:defun #:flet
+           #:defvar #:defparameter)
   (:export
    #:defun
    #:flet
