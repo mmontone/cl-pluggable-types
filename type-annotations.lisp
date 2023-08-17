@@ -227,12 +227,14 @@
 (defmacro defun (name args &body body)
   "Typed annotated DEFUN.
 
-Syntax:
+Type annotations can appear after argument names.
+Annotations on all required, optional and key arguments are supported.
+Also, an optional return type annotation can appear after the function arguments list.
 
 Example:
 
-(<t>:defun sum (x <integer> y <integer>) <integer>
-    (+ x y))
+    (<t>:defun sum (x <integer> y <integer>) <integer>
+        (+ x y))
 "
   (let* ((annotated-def (annotate-defun `(defun ,name ,args ,@body)))
          (function-type (extract-cl-function-type annotated-def))
@@ -246,11 +248,11 @@ Example:
 (defmacro defvar (name &rest init)
   "Type annotated DEFVAR.
 
-Syntax: a type annotation is accepted after the variable name.
+A type annotation is accepted after the variable name.
 
 Example:
 
-(<t>:defvar *my-var* <integer> 22)
+    (<t>:defvar *my-var* <integer> 22)
 
 "
   (let ((annot-init (parse-type-annotations init)))
@@ -259,3 +261,20 @@ Example:
            (declaim (type ,(cl-type (car annot-init)) ,name))
            (cl:defvar ,name ,@(rest annot-init)))
         `(cl:defvar ,name ,@annot-init))))
+
+(defmacro defparameter (name &rest init)
+  "Type annotated DEFPARAMETER.
+
+A type annotation is accepted after the variable name.
+
+Example:
+
+    (<t>:defparameter *my-var* <integer> 22)
+
+"
+  (let ((annot-init (parse-type-annotations init)))
+    (if (type-annotation-p (car annot-init))
+        `(progn
+           (declaim (type ,(cl-type (car annot-init)) ,name))
+           (cl:defparameter ,name ,@(rest annot-init)))
+        `(cl:defparameter ,name ,@annot-init))))
