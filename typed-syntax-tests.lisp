@@ -97,6 +97,11 @@
   '(defun hello (x <integer> y <string> &optional (z <list-of boolean> t) w) <list-of string>
     (< 2 4))))
 
+(extract-cl-function-type
+ (annotate-defun
+  '(defun hello (x <integer> y <string> &key (z <list-of boolean> 'lala) w) <list-of string>
+    (< 2 4))))
+
 (count-ocurrences #\< (symbol-name '<asdf<asdf>>))
 
 (extract-return-type '(<list-of string> (print 'lala)))

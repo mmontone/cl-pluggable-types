@@ -122,7 +122,28 @@
                        (go retry))
                      (push arg optional-types)
                      (setf arg-position arg)))))
-              (:key (error "TODO"))
+              (:key
+               (tagbody retry
+                  (ecase arg-position
+                    (:arg
+                     (cond
+                       ((atom arg)
+                        (push arg key)
+                        (setf arg-position :type))
+                       ((listp arg)
+                        (push (first arg) key)
+                        (let ((type
+                                (find-if #'type-annotation-p arg)))
+                          (if type
+                              (push type key-types)
+                              (push (make-type-annotation :type 't) key-types))))))
+                    (:type
+                     (when (not (type-annotation-p arg))
+                       (push (make-type-annotation :type 't) key-types)
+                       (setf arg-position arg)
+                       (go retry))
+                     (push arg key-types)
+                     (setf arg-position arg)))))
               (:rest (error "TODO"))))))
       ;; If at type position, then complete the types with T type
       (when (eql arg-position :type)
@@ -136,14 +157,25 @@
               (mapcar #'cons
                       (reverse optional)
                       (reverse optional-types))
-              key rest return-type))))
+              (mapcar #'cons
+                      (reverse key)
+                      (reverse key-types))
+              rest return-type))))
+
+(cl:defun make-keyword (symbol)
+  (intern (string-upcase (string symbol)) :keyword))
 
 (cl:defun extract-cl-function-type (annotated-defun)
   (multiple-value-bind (required optional key rest return)
       (extract-function-types annotated-defun)
     `(function (,@(mapcar (alexandria:compose #'cl-type #'cdr) required)
                 ,@(when optional
-                    (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional))))
+                    (list* '&optional (mapcar (alexandria:compose #'cl-type #'cdr) optional)))
+                ,@(when key
+                    (list* '&key (mapcar (lambda (keyarg)
+                                           (list (make-keyword (car keyarg))
+                                                 (cl-type (cdr keyarg))))
+                                         key))))
                ,(cl-type return))))
 
 (cl:defun count-ocurrences (what sequence)
