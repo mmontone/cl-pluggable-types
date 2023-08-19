@@ -32,6 +32,14 @@
   (subtype t t)
   (inst t t))
 
+(defmethod print-object ((var var) stream)
+  (adt:match type-var var
+    ((var name form)
+     (format stream "~a" name)
+     (when (and *debug-solver* form
+                (typep form 'walked-form))
+       (format stream "[~a]" (source-of form))))))
+
 (defun unknown-p (x)
   (typep x 'unknown))
 
@@ -265,7 +273,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (let ((current-var (assoc var solution)))
        (cond
          ;; Not already assigned, assign.
-         ((and (not current-var) (fully-solved-p thing))
+         ((and (not current-var)
+               (fully-solved-p thing))
           ;;(break "assign ~a to ~a" var thing)
           (values (cons (cons var thing) solution) t))
          ;; If var already assigned, check type compatibility
@@ -349,7 +358,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (declared-vartypes nil :type list)
   (ftypes nil :type list)
   (vartypes nil :type list)
-  (debugp nil :type boolean))
+  (debugp *debug-solver* :type boolean))
 
 (defmacro with-type-env ((var &optional env) &body body)
   (if env
@@ -365,7 +374,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (declaim (ftype (function (walked-form type-env) var)))
 (defun new-var (form env)
   "Create a new type variable for FORM in ENV."
-  (let* ((varname (intern (format nil "VAR~a" (incf (type-env-symbol-nr env)))))
+  (let* ((varname (intern (format nil "V~a" (incf (type-env-symbol-nr env)))))
          (var (var varname
                    (when (type-env-debugp env)
                      form))))
