@@ -32,6 +32,72 @@
   (subtype t t)
   (inst t t))
 
+(defun unknown-p (x)
+  (typep x 'unknown))
+
+(defun types-compatible-p (type1 type2)
+  "Return T when TYPE1 can be used in a place that expects a TYPE2."
+  (trivia:match (list type1 type2)
+    ((list 't _)
+     t)
+    ((list _ 't)
+     t)
+    ((list _ (list 'cons-of a (list 'list-of b)))
+     (types-compatible-p type1 `(list-of (or ,a ,b))))
+    ((list (cons 'values vt1) (cons 'values vt2))
+     (every (curry #'apply #'types-compatible-p)
+            (mapcar #'list vt1 vt2)))
+    ((list (cons 'values vt1) type)
+     (types-compatible-p (car vt1) type))
+    ((list type (cons 'values vt2))
+     (types-compatible-p type (car vt2)))
+    ((list (list 'list-of type1)
+           (list 'list-of type2))
+     (types-compatible-p type1 type2))
+    ((list (list 'list-of type)
+           (list 'cons-of a b))
+     (types-compatible-p `(cons-of ,type (list-of ,type))
+                         type2))
+    ((list (list 'cons-of a b)
+           (list 'list-of type))
+     (types-compatible-p type1
+                         `(cons-of ,type (list-of ,type))))
+    ((list (cons 'function _)
+           'function)
+     t)
+    ((list (list 'function f1args f1ret)
+           (list 'function f2args f2ret))
+     ;; TODO: parse lambda lists and check args
+     (types-compatible-p f2ret f1ret))
+    ;; Type union
+    ((list _ (cons 'or types))
+     (some (curry #'types-compatible-p type1) types))
+    ((list (cons 'or types) _)
+     (some (rcurry #'types-compatible-p type2) types))
+    ;; Compatibility of composed types
+    ((and (list (cons tname1 args1)
+                (cons tname2 args2))
+          (satisfies (lambda (_)
+                       (declare (ignore _))
+                       (and (symbolp tname1)
+                            (symbolp tname2)
+                            (eql tname1 tname2)))))
+     (every #'types-compatible-p args1 args2))
+    #+nil((list _ (satisfies unknown-p))
+     ;;(adt:set-data type2 (unknown type1))
+     
+     t)
+    #+nil((list (satisfies unknown-p) _)
+     ;;(adt:set-data type1 (unknown type2))
+     t)
+    (_
+     (or
+      (some (rcurry #'typep 'var) (list type1 type2))
+      ;;(some (rcurry #'typep 'unknown) (list type1 type2))
+      (subtypep type1 type2)))))
+
+#|
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (trivia-functions:define-match-function types-compatible-p (types)))
 
@@ -85,7 +151,9 @@
 
 (trivia-functions:define-match-method types-compatible-p
     ((list (list 'hash-table-of _ _) 'hash-table))
-  t)
+t)
+
+|#
 
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
@@ -160,7 +228,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (values (cons (cons type2 type1) solution) t))
     ((and (fully-solved-p type1)
           (fully-solved-p type2))
-     (unless (types-compatible-p (list type1 type2))
+     (unless (types-compatible-p type1 type2)
        (error 'type-inconsistency-error
               :format-control "~a is not compatible with ~a"
               :format-arguments (list type1 type2)))
@@ -203,7 +271,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
          ;; If var already assigned, check type compatibility
          ((and current-var (fully-solved-p thing))
           (let ((assigned (cdr current-var)))
-            (unless (types-compatible-p (list assigned thing))
+            (unless (types-compatible-p thing assigned)
               (error 'type-inconsistency-error
                      :format-control "~a is not compatible with ~a"
                      :format-arguments (list assigned thing)))
@@ -228,7 +296,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
      (when (or (not (fully-solved-p type1))
                (not (fully-solved-p type2)))
        (return-from solve-constraint (values solution nil)))
-     (unless (types-compatible-p (list type1 type2))
+     (unless (types-compatible-p type1 type2)
        (cerror "Continue" 'type-inconsistency-error
                :format-control "~a is not subtype of ~a"
                :format-arguments (list type1 type2)))
@@ -239,7 +307,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
         (values solution t))
        ((and (fully-solved-p type1)
              (fully-solved-p type2))
-        (unless (types-compatible-p (list type2 type1))
+        (unless (types-compatible-p type1 type2)
           (cerror "Continue" 'type-inconsistency-error
                   :format-control "~a is not subtype of ~a"
                   :format-arguments (list type1 type2)))
