@@ -1,22 +1,27 @@
-(defpackage :pluggable-types/const
-  (:use :cl :alexandria :hu.dwim.walker)
-  (:import-from
-   :pluggable-types/decl
-   #:*funtypes*
-   #:*vartypes*
-   #:assign-types-from-function-type
+;; https://dada.cs.washington.edu/research/tr/1998/01/UW-CSE-98-01-01.pdf
 
-   #:list-of
-   #:cons-of
-   #:all
-   #:hash-table-of))
+(defpackage :pluggable-types/const
+  (:use :cl :alexandria :hu.dwim.walker
+   :polymorphic-types
+        :polymorphic-cl-types)
+  (:export #:check-form
+           #:type-checking-error
+           #:types-compatible-p))
 
 (in-package :pluggable-types/const)
 
 (defvar *debug-solver* nil
   "When enabled, unification steps are printed to *STANDARD-OUTPUT*")
 
-(define-condition type-inconsistency-error (simple-error)
+(define-condition type-checking-error (simple-error)
+  ((form :initarg :form
+         :accessor error-form)
+   (source :initarg :source
+           :accessor error-source)
+   (position :initarg :position
+             :accessor error-position)))
+
+(define-condition type-inconsistency-error (type-checking-error)
   ())
 
 (adt:defdata type-var
@@ -79,7 +84,7 @@
   (types-compatible-p (list (first type1) type2)))
 
 (trivia-functions:define-match-method types-compatible-p
-    ((list (list 'pluggable-types/decl:hash-table-of _ _) 'hash-table))
+    ((list (list 'hash-table-of _ _) 'hash-table))
   t)
 
 (declaim (ftype (function (cons t) t) subst-term))
@@ -204,10 +209,10 @@ ASSIGNMENT is CONS of VAR to a TERM."
                      :format-arguments (list assigned thing)))
             ;;(break "already assigned")
             #+todo(if (subtypep thing assigned)
-                (progn
-                  (setf (cdr (assoc var solution)) thing)
-                  (values solution t))
-                (values solution t))
+                      (progn
+                        (setf (cdr (assoc var solution)) thing)
+                        (values solution t))
+                      (values solution t))
             (values solution t)))
          ;; Already assigned and right side is a variable.
          ;; Add as solution for variable at right hand side.
@@ -225,8 +230,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
        (return-from solve-constraint (values solution nil)))
      (unless (types-compatible-p (list type1 type2))
        (cerror "Continue" 'type-inconsistency-error
-              :format-control "~a is not subtype of ~a"
-              :format-arguments (list type1 type2)))
+               :format-control "~a is not subtype of ~a"
+               :format-arguments (list type1 type2)))
      (values solution t))
     ((inst type1 type2)
      (cond
@@ -236,11 +241,11 @@ ASSIGNMENT is CONS of VAR to a TERM."
              (fully-solved-p type2))
         (unless (types-compatible-p (list type2 type1))
           (cerror "Continue" 'type-inconsistency-error
-              :format-control "~a is not subtype of ~a"
-              :format-arguments (list type1 type2)))
+                  :format-control "~a is not subtype of ~a"
+                  :format-arguments (list type1 type2)))
         (values solution t))
        (t (unify-types type1 type2 solution))))
-    ))     
+    ))
 
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
@@ -271,7 +276,20 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (solution nil :type list)
   (declared-ftypes nil :type list)
   (declared-vartypes nil :type list)
+  (ftypes nil :type list)
+  (vartypes nil :type list)
   (debugp nil :type boolean))
+
+(defmacro with-type-env ((var &optional env) &body body)
+  (if env
+      `(let ((,var (copy-type-env ,env)))
+         ,@body)
+      `(let ((,var (make-type-env)))
+         ,@body)))
+
+(defmacro appendf-front (place &rest lists)
+  `(setf ,place
+         (append ,@lists ,place)))
 
 (declaim (ftype (function (walked-form type-env) var)))
 (defun new-var (form env)
@@ -288,6 +306,46 @@ ASSIGNMENT is CONS of VAR to a TERM."
   "Add constraint from type term X to type term Y, in ENV"
   (push constraint (type-env-constraints env)))
 
+(declaim (ftype (function ((or symbol function) t type-env) t)
+                get-func-type))
+(defgeneric get-func-type (function-designator context type-env)
+  (:documentation "Get the type for FUNCTION-DESIGNATOR in CONTEXT."))
+
+(defmethod get-func-type ((func function) context env)
+  (get-func-type (compiler-info:function-name func) context env))
+
+(defvar *use-compiler-provided-types* t
+  "When enabled, use types provided by the Lisp compiler.")
+
+(defmethod get-func-type ((func-name symbol) context env)
+  "Get the type of function with FNAME in ENV."
+  (or
+   ;; Try from locals in ENV first
+   (cdr (assoc func-name (type-env-ftypes env)))
+   ;; Then try to get from the read declarations
+   (cdr (assoc func-name *funtypes*))
+   ;; If none found, use compiler information
+   (and *use-compiler-provided-types*
+        (compiler-info:function-type func-name))
+   ;; Or a generic function type
+   '(function (&rest t) t)))
+
+;; (get-func-type 'identity t (make-type-env))
+;; (get-func-type 'concatenate t (make-type-env))
+;; (get-func-type #'identity t (make-type-env))
+;; (get-func-type #'+  t (make-type-env))
+
+(defmethod get-func-type ((func (eql 'mapcar)) (form application-form) env)
+  (assert (eql (operator-of form) 'mapcar))
+  (let* ((mapcar-args-len (length (cdr (arguments-of form))))
+         (vars (loop repeat mapcar-args-len
+                     collect (gensym)))
+         (return-type (gensym)))
+    `(all (,@vars ,return-type)
+          (function ((function ,vars ,return-type)
+                     ,@(mapcar (lambda (type) `(list-of ,type)) vars))
+                    (list-of ,return-type)))))
+
 (declaim (ftype (function (walked-form type-env list) t) generate-type-constraints))
 (defgeneric generate-type-constraints (form env locals)
   (:documentation "Generate type constraints for FORM in ENV under LOCALS."))
@@ -295,7 +353,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defmethod generate-type-constraints ((form constant-form) env locals)
   (let ((var (new-var form env))
         (type (if (functionp (value-of form))
-                  (get-func-type (value-of form) env)
+                  (get-func-type (value-of form) form env)
                   (type-of (value-of form)))))
     (add-constraint (assign var type) env)
     var))
@@ -364,49 +422,21 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defmethod generate-type-constraints ((form go-tag-form) env locals)
   ;; what to do?
   (let ((var (new-var form env)))
-    (add-constraint var 't env)
+    (add-constraint (assign var t) env)
     var))
 
 (defmethod generate-type-constraints ((form go-form) env locals)
   ;; what to do?
   (let ((var (new-var form env)))
-    (add-constraint var 't env)
+    (add-constraint (assign var t) env)
     var))
-
-(defparameter *type-declarations* '())
-
-(declaim (ftype (function ((or symbol function) type-env) t) get-func-type))
-(defun get-func-type (func env)
-  "Get the type of function with FNAME in ENV."
-  (let ((fname (typecase func
-                 (symbol func)
-                 (function (compiler-info:function-name func)))))
-    ;; First try to get from the read declarations
-    (dolist (funtype *funtypes*)
-      (when (eql fname (car funtype))
-        (return-from get-func-type (cdr funtype))))
-    (dolist (decl *type-declarations*)
-      (destructuring-bind (declaration-type &rest declaration-body) decl
-        (when (member (symbol-name declaration-type) '("FTYPE" "FTYPE*")
-                      :test #'string=)
-          (when (eql (lastcar declaration-body) fname)
-            (return-from get-func-type (car declaration-body))))))
-    ;; If none found, use compiler information
-    (or (compiler-info:function-type fname)
-        ;; Or a generic function type
-        '(function (&rest t) t))))
-
-;; (get-func-type 'identity (make-type-env))
-;; (get-func-type 'concatenate (make-type-env))
-;; (get-func-type #'identity (make-type-env))
-;; (get-func-type #'+ (make-type-env))
 
 (declaim (ftype (function (t type-env) t) instantiate-type))
 (defun instantiate-type (type env)
   "Create an instance of TYPE in ENV.
 Type parameters are substituted by type variables."
   (trivia:match type
-    ((list 'pluggable-types/decl:all type-args type)
+    ((list 'all type-args type)
      (let ((type-instance type))
        (dolist (type-arg type-args)
          (let ((type-var (new-var type-arg env)))
@@ -416,13 +446,10 @@ Type parameters are substituted by type variables."
      (cons type-name (mapcar (rcurry #'instantiate-type env) args)))
     (_ type)))
 
-;; (instantiate-type '(pluggable-types/decl::all (a) (list-of a)) (make-type-env))
+;; (instantiate-type '(all (a) (list-of a)) (make-type-env))
 ;; (instantiate-type '(all (a) (function (a) a)) (make-type-env))
 ;; (instantiate-type 'integer (make-type-env))
 ;; (instantiate-type '(function (integer) t) (make-type-env))
-;; (instantiate-type '(or (all (a) (function (a) boolean))
-;;                     (all (a b) (function (a b) b)))
-;;                   (make-type-env))
 
 (declaim (ftype (function (t) t) generalize-type))
 (defun generalize-type (type)
@@ -455,8 +482,7 @@ Type parameters are substituted by type variables."
                 generate-function-application-constraints))
 (defun generate-function-application-constraints (func-type form env locals)
   "Generate type constraints for function application."
-  (let ((arg-types (assign-types-from-function-type
-                    func-type (arguments-of form)))
+  (let ((arg-types (assign-types-from-function-type-2 func-type form))
         (arg-vars nil))
 
     ;; Constraint the types of the arguments
@@ -481,18 +507,18 @@ Type parameters are substituted by type variables."
         ;; Otherwise, the type of the application is the function return type
         (t
          (add-constraint (assign app-var return-type) env)
-         (add-constraint (inst return-type app-var) env)         
+         (add-constraint (inst return-type app-var) env)
          ))
       app-var)))
 
 (defmethod generate-type-constraints ((form application-form) env locals)
-  (let ((func-type (instantiate-type (get-func-type (operator-of form) env) env)))
+  (let ((func-type (instantiate-type (get-func-type (operator-of form) form env) env)))
     (generate-function-application-constraints
      func-type form env locals)))
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint (assign var (instantiate-type (get-func-type (name-of form) env) env)) env)
+    (add-constraint (assign var (instantiate-type (get-func-type (name-of form) form env) env)) env)
     var))
 
 (defmethod generate-type-constraints ((form walked-lexical-variable-reference-form) env locals)
@@ -532,7 +558,7 @@ Type parameters are substituted by type variables."
   (let ((then-type (generate-type-constraints (then-of form) env locals))
         (else-type (generate-type-constraints (else-of form) env locals))
         (var (new-var form env)))
-    (add-constraint var `(or ,then-type ,else-type) env)
+    (add-constraint (assign var `(or ,then-type ,else-type)) env)
     var))
 
 (defun canonize-type (type)
@@ -544,7 +570,31 @@ Type parameters are substituted by type variables."
      (cons type-name (mapcar #'canonize-type args)))
     (_ type)))
 
-(defun infer-form (form &optional env)
+(defun expanded-type (type)
+  (trivia:match type
+    ('list '(list-of t))
+    ('cons '(cons-of t t))
+    ('hash-table '(hash-table-of t t))
+    ('function '(function (&rest t) t))
+    (_ type)))
+
+;; A substituion is a list of assignments
+(defun apply-substitution (assignments term)
+  (let ((new-term term))
+    (dolist (assignment assignments)
+      (setq new-term (subst-term assignment new-term)))
+    new-term))
+
+(defun apply-substitution* (assignments term)
+  "Apply as much substitutions as possible."
+  (let ((subst-term term)
+        (last-subst-term nil))
+    (loop while (not (equalp subst-term last-subst-term))
+          do (setq last-subst-term subst-term)
+             (setq subst-term (apply-substitution assignments subst-term)))
+    subst-term))
+
+(defun check-form (form &optional env)
   "Infer the type of FORM."
   (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
@@ -558,7 +608,7 @@ Type parameters are substituted by type variables."
              (assert expr)
              (push (cons expr
                          (arrows:->> type
-                                     (apply-substitution (type-env-solution type-env))
+                                     (apply-substitution* (type-env-solution type-env))
                                      (canonize-type)
                                      (generalize-type)))
                    type-assignments)))))
@@ -570,5 +620,5 @@ Type parameters are substituted by type variables."
        ;; type environment
        type-env))))
 
-(defun infer-form* (&rest args)
-  (first (multiple-value-list (apply #'infer-form args))))
+(defun check-form* (&rest args)
+  (first (multiple-value-list (apply #'check-form args))))
