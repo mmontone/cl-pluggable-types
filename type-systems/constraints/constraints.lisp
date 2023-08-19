@@ -330,6 +330,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defun solve (constraints &optional solution)
   "Solve CONSTRAINTS under current SOLUTIONitution."
   (format t "~%Solving ... ~%")
+  (format t "Current solution:~%")
+  (dolist (assignment solution)
+    (format t "~a -> ~a~%" (car assignment) (cdr assignment)))
   (when (null constraints)
     (return-from solve solution))
   (let ((unsolved nil)
