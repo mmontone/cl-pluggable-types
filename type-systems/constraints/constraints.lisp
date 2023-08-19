@@ -473,7 +473,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
         (value-type (generate-type-constraints (value-of form) env locals)))
     (add-constraint (assign var (declared-type-of form)) env)
     (add-constraint (subtype var value-type) env)
-    (add-constraint (inst value-type (declared-type-of form)) env)
+    ;; The declared type is a subtype of the form type (coercion).
+    (add-constraint (inst (declared-type-of form) value-type) env)
     var))
 
 (defmethod generate-type-constraints ((form setq-form) env locals)
@@ -648,7 +649,7 @@ Type parameters are substituted by type variables."
     ('hash-table '(hash-table-of t t))
     ('function '(function (&rest t) t))
     ((list 'list-of type)
-     `(cons ,type (list-of ,type)))
+     `(cons-of ,type (list-of ,type)))
     (_ type)))
 
 ;; A substituion is a list of assignments
