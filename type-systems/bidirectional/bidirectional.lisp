@@ -243,7 +243,8 @@ Type parameters are substituted by type variables."
   (instantiate-type (get-func-type (name-of form) form env) env))
 
 (defmethod infer-type ((form the-form) env)
-  (bid-check-type (value-of form) (declared-type-of form) env)
+  ;; declared type is subtype of form type. coercion.
+  (bid-check-type (declared-type-of form) (value-of form) env)
   (declared-type-of form))
 
 (defmethod bid-check-type ((form constant-form) type env)
