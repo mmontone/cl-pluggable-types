@@ -272,7 +272,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
          ((and current-var (fully-solved-p thing))
           (let ((assigned (cdr current-var)))
             (unless (types-compatible-p thing assigned)
-              (error 'type-inconsistency-error
+              (cerror "Continue"
+                      'type-inconsistency-error
                      :format-control "~a is not compatible with ~a"
                      :format-arguments (list assigned thing)))
             ;;(break "already assigned")
@@ -312,7 +313,9 @@ ASSIGNMENT is CONS of VAR to a TERM."
                   :format-control "~a is not subtype of ~a"
                   :format-arguments (list type1 type2)))
         (values solution t))
-       (t (unify-types type1 type2 solution))))
+       (t (unify-types (expanded-type type1)
+                       (expanded-type type2)
+                       solution))))
     ))
 
 (defun solve (constraints &optional solution)
@@ -561,7 +564,7 @@ Type parameters are substituted by type variables."
                    (actual-arg (generate-type-constraints arg env locals)))
                (add-constraint (assign arg-var (cdr arg-type)) env)
                (add-constraint (subtype actual-arg arg-var) env)
-               (add-constraint (inst (cdr arg-type) actual-arg) env)
+               (add-constraint (inst actual-arg (cdr arg-type)) env)
                (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
@@ -644,6 +647,8 @@ Type parameters are substituted by type variables."
     ('cons '(cons-of t t))
     ('hash-table '(hash-table-of t t))
     ('function '(function (&rest t) t))
+    ((list 'list-of type)
+     `(cons ,type (list-of ,type)))
     (_ type)))
 
 ;; A substituion is a list of assignments
