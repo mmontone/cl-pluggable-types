@@ -25,12 +25,12 @@
   ())
 
 (adt:defdata type-var
-  (var t t))
+  (var t t)
+  (unknown t))
 
 (adt:defdata constraint
-  (assign t t)
-  (subtype t t)
-  (inst t t))
+  (unify t t)
+  (subtype t t))
 
 (defmethod print-object ((var var) stream)
   (adt:match type-var var
@@ -38,7 +38,9 @@
      (format stream "~a" name)
      (when (and *debug-solver* form
                 (typep form 'walked-form))
-       (format stream "[~a]" (source-of form))))))
+       (format stream "[~a]" (source-of form))))
+    ((unknown form)
+     (call-next-method))))
 
 (defun unknown-p (x)
   (typep x 'unknown))
@@ -104,65 +106,6 @@
       ;;(some (rcurry #'typep 'unknown) (list type1 type2))
       (subtypep type1 type2)))))
 
-#|
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (trivia-functions:define-match-function types-compatible-p (types)))
-
-;; Homogeneous lists
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'list-of elem-type-a) (list 'list-of elem-type-b)))
-  (types-compatible-p (list elem-type-a elem-type-b)))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'list-of list-type)
-           (list 'cons-of cons-type-a cons-type-b)))
-  (and (types-compatible-p (list list-type cons-type-a))
-       (types-compatible-p (list cons-type-b `(list-of ,list-type)))))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'cons-of cons-type-a cons-type-b)
-           (list 'list-of list-type)))
-  (and (types-compatible-p (list list-type cons-type-a))
-       (types-compatible-p (list cons-type-b `(list-of ,list-type)))))
-
-;; Homogeneous cons
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'cons-of a b) (list 'cons-of c d)))
-  (and (types-compatible-p (list a c))
-       (types-compatible-p (list b d))))
-
-;; Cons fallback/coercion
-(trivia-functions:define-match-method types-compatible-p
-    ((or (list (list 'cons-of a b) (or 'cons 'list))
-         (list (or 'cons 'list) (list 'cons-of a b))))
-  (types-compatible-p (list (list 'cons-of a b) '(cons-of t t))))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'hash-table-of a b)
-           (list 'hash-table-of c d)))
-  (and (types-compatible-p (list a c))
-       (types-compatible-p (list b d))))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list type1 type2))
-  (or (subtypep type1 type2)
-      (subtypep type2 type1)))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list type1 (cons 'values type2)))
-  (types-compatible-p (list type1 (first type2))))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list (cons 'values type1) type2))
-  (types-compatible-p (list (first type1) type2)))
-
-(trivia-functions:define-match-method types-compatible-p
-    ((list (list 'hash-table-of _ _) 'hash-table))
-t)
-
-|#
-
 (declaim (ftype (function (cons t) t) subst-term))
 (defun subst-term (assignment term)
   "Substitute ASSIGNMENT in TERM.
@@ -177,12 +120,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
          term))
     ((list _ (subtype (%0 type1) (%1 type2)))
      (subtype (subst-term assignment type1)
-              (subst-term assignment type2)))
-    ((list _ (assign (%0 var) (%1 what)))
-     (assign var (subst-term assignment what)))
-    ((list _ (inst (%0 type1) (%1 type2)))
-     (inst (subst-term assignment type1)
-           (subst-term assignment type2)))
+              (subst-term assignment type2)))    
     (_
      (cond
        ((listp term)
@@ -263,68 +201,79 @@ ASSIGNMENT is CONS of VAR to a TERM."
        (_
         (values solution nil))))))
 
-(declaim (ftype (function (constraint list) (values list boolean))
-                solve-constraint))
+(declaim (ftype (function ((list-of cons)) list) resolve-type-vars))
+
+(defun resolve-type-vars-one (term1 term2)
+  (when (eql term1 term2)
+    (return-from resolve-type-vars-one nil))
+  (trivia:match (mapcar #'expanded-type (list term1 term2))
+    ((list (cons 'values ts1) (cons 'values ts2))
+     (resolve-type-vars (mapcar #'cons ts1 ts2)))
+    ((list (cons 'values values) type)
+     (resolve-type-vars-one (car values) type))
+    ((list type (cons 'values values))
+     (resolve-type-vars-one type (car values)))
+    ((list (list 'list-of a) (list 'list-of b))
+     (resolve-type-vars-one a b))
+    ((list (list 'cons-of a (list 'list-of c))
+           (list 'cons-of b (list 'list-of d)))
+     (resolve-type-vars-one a b)
+     (resolve-type-vars-one c d))
+    ((list (list 'cons-of a b)
+           (list 'list-of type))
+     (resolve-type-vars-one term1 `(cons-of ,type (list-of ,type))))
+    ((list (list 'list-of type) (list 'cons-of a b))
+     (resolve-type-vars-one `(cons-of ,type (list-of ,type)) term2))
+    ((list (var (%0 vname) (%1 vinfo))
+           t2)
+     (list (cons term1 term2)))
+    ((list t1 (var (%0 vname) (%1 vinfo)))
+     (list (cons term2 term1)))
+    ((list (list '&rest t1) (list '&rest t2))
+     (resolve-type-vars-one t1 t2))
+    ((list (list '&rest rtype) _)
+     (apply #'append
+            (mapcar (curry #'resolve-type-vars-one rtype)
+                    term2)))
+    ((list _ (list '&rest rtype))
+     (apply #'append
+            (mapcar (rcurry #'resolve-type-vars rtype) term1)))
+    ((list (cons t1 ts1)
+           (cons t2 ts2))
+     (append (resolve-type-vars-one t1 t2)
+             (resolve-type-vars (mapcar #'cons ts1 ts2))))
+    (_
+     nil
+     )))
+
+(defun resolve-type-vars (constraints)
+  "Unify CONSTRAINTS."
+  (when constraints
+    (let* ((substitution (resolve-type-vars (rest constraints)))
+           (constraint (first constraints))
+           (sub2
+             (resolve-type-vars-one
+              (apply-substitution substitution (car constraint))
+              (apply-substitution substitution (cdr constraint)))))
+      (append sub2 substitution))))
+
 (defun solve-constraint (constraint solution)
   (format t "Solve constraint: ~a~%" constraint)
   ;;(break)
   (adt:match constraint constraint
-    ((assign var thing)
-     (let ((current-var (assoc var solution)))
-       (cond
-         ;; Not already assigned, assign.
-         ((and (not current-var)
-               (fully-solved-p thing))
-          ;;(break "assign ~a to ~a" var thing)
-          (values (cons (cons var thing) solution) t))
-         ;; If var already assigned, check type compatibility
-         ((and current-var (fully-solved-p thing))
-          (let ((assigned (cdr current-var)))
-            (unless (types-compatible-p thing assigned)
-              (cerror "Continue"
-                      'type-inconsistency-error
-                     :format-control "~a is not compatible with ~a"
-                     :format-arguments (list assigned thing)))
-            ;;(break "already assigned")
-            #+todo(if (subtypep thing assigned)
-                      (progn
-                        (setf (cdr (assoc var solution)) thing)
-                        (values solution t))
-                      (values solution t))
-            (values solution t)))
-         ;; Already assigned and right side is a variable.
-         ;; Add as solution for variable at right hand side.
-         ((and current-var (typep thing 'var))
-          (values (cons (cons thing (cdr current-var))
-                        solution)
-                  t))
-         ;; Cannot solve
-         (t
-          (values solution nil)))))
     ((subtype type1 type2)
      ;;(break)
-     (when (or (not (fully-solved-p type1))
-               (not (fully-solved-p type2)))
-       (return-from solve-constraint (values solution nil)))
-     (unless (types-compatible-p type1 type2)
-       (cerror "Continue" 'type-inconsistency-error
-               :format-control "~a is not subtype of ~a"
-               :format-arguments (list type1 type2)))
-     (values solution t))
-    ((inst type1 type2)
-     (cond
-       ((equalp type1 type2)
-        (values solution t))
-       ((and (fully-solved-p type1)
-             (fully-solved-p type2))
-        (unless (types-compatible-p type1 type2)
-          (cerror "Continue" 'type-inconsistency-error
-                  :format-control "~a is not subtype of ~a"
-                  :format-arguments (list type1 type2)))
-        (values solution t))
-       (t (unify-types (expanded-type type1)
-                       (expanded-type type2)
-                       solution))))
+     #+nil(when (or (not (fully-solved-p type1))
+                    (not (fully-solved-p type2)))
+            (return-from solve-constraint (values solution nil)))
+     (let ((type1 (apply-substitution* solution type1))
+           (type2 (apply-substitution* solution type2)))
+       (unless (types-compatible-p type1 type2)
+         (cerror "Continue" 'type-inconsistency-error
+                 :format-control "~a is not subtype of ~a"
+                 :format-arguments (list type1 type2)))
+       (values solution t)))    
+    (_)
     ))
 
 (defun solve (constraints &optional solution)
@@ -338,7 +287,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (let ((unsolved nil)
         (current-solution solution))
     (dolist (constraint constraints)
-      (format t "Constraint: ~a ~%" constraint)
+      ;;(format t "Constraint: ~a ~%" constraint)
       (multiple-value-bind (new-solution solved?)
           (solve-constraint (apply-solution current-solution constraint) current-solution)
         (assert (or (not solution) new-solution))
@@ -438,7 +387,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
         (type (if (functionp (value-of form))
                   (get-func-type (value-of form) form env)
                   (type-of (value-of form)))))
-    (add-constraint (assign var type) env)
+    (add-constraint (unify var type) env)
     var))
 
 (defmethod generate-type-constraints ((form let-form) env locals)
@@ -447,14 +396,14 @@ ASSIGNMENT is CONS of VAR to a TERM."
       (let ((binding-value-var
               (generate-type-constraints (initial-value-of binding) env locals)))
         (let ((binding-var (new-var binding env)))
-          (add-constraint (assign binding-var binding-value-var) env)
+          (add-constraint (unify binding-var binding-value-var) env)
           (push (cons (name-of binding) binding-var) let-locals))))
     ;; The type of the let is the type of the last expression in body, so return that
     (let ((body-var nil)
           (let-var (new-var form env)))
       (dolist (body-form (body-of form))
         (setf body-var (generate-type-constraints body-form env let-locals)))
-      (add-constraint (assign let-var body-var) env)
+      (add-constraint (unify let-var body-var) env)
       let-var)))
 
 (defmethod generate-type-constraints ((form let*-form) env locals)
@@ -463,30 +412,31 @@ ASSIGNMENT is CONS of VAR to a TERM."
       (let ((binding-value-var
               (generate-type-constraints (initial-value-of binding) env let-locals)))
         (let ((binding-var (new-var binding env)))
-          (add-constraint (assign binding-var binding-value-var) env)
+          (add-constraint (unify binding-var binding-value-var) env)
           (push (cons (name-of binding) binding-var) let-locals))))
     ;; The type of the let is the type of the last expression in body, so return that
     (let ((body-var nil)
           (let-var (new-var form env)))
       (dolist (body-form (body-of form))
         (setf body-var (generate-type-constraints body-form env let-locals)))
-      (add-constraint (assign let-var body-var) env)
+      (add-constraint (unify let-var body-var) env)
       let-var)))
 
 (defmethod generate-type-constraints ((form lexical-variable-reference-form) env locals)
   (let ((var (new-var form env))
         (local-var (or (cdr (find (name-of form) locals :key #'car))
                        (error "Badly done"))))
-    (add-constraint (assign var local-var) env)
+    (add-constraint (unify var local-var) env)
     var))
 
 (defmethod generate-type-constraints ((form the-form) env locals)
   (let ((var (new-var form env))
         (value-type (generate-type-constraints (value-of form) env locals)))
-    (add-constraint (assign var (declared-type-of form)) env)
-    (add-constraint (subtype var value-type) env)
+    (add-constraint (unify var (declared-type-of form)) env)
     ;; The declared type is a subtype of the form type (coercion).
-    (add-constraint (inst (declared-type-of form) value-type) env)
+    (add-constraint (unify (declared-type-of form) value-type) env)
+    ;; This causes trouble. How to check?
+    ;;(add-constraint (subtype var value-type) env)    
     var))
 
 (defmethod generate-type-constraints ((form setq-form) env locals)
@@ -506,13 +456,13 @@ ASSIGNMENT is CONS of VAR to a TERM."
 (defmethod generate-type-constraints ((form go-tag-form) env locals)
   ;; what to do?
   (let ((var (new-var form env)))
-    (add-constraint (assign var t) env)
+    (add-constraint (unify var 't) env)
     var))
 
 (defmethod generate-type-constraints ((form go-form) env locals)
   ;; what to do?
   (let ((var (new-var form env)))
-    (add-constraint (assign var t) env)
+    (add-constraint (unify var 't) env)
     var))
 
 (declaim (ftype (function (t type-env) t) instantiate-type))
@@ -575,9 +525,9 @@ Type parameters are substituted by type variables."
           do
              (let ((arg-var (new-var arg env))
                    (actual-arg (generate-type-constraints arg env locals)))
-               (add-constraint (assign arg-var (cdr arg-type)) env)
+               (add-constraint (unify arg-var (cdr arg-type)) env)
                (add-constraint (subtype actual-arg arg-var) env)
-               (add-constraint (inst actual-arg (cdr arg-type)) env)
+               (add-constraint (unify actual-arg (cdr arg-type)) env)
                (push arg-var arg-vars)))
 
     ;; Constraint the type of the application
@@ -587,11 +537,11 @@ Type parameters are substituted by type variables."
         ;; Treat MAKE-INSTANCE specially
         ((and (eql (operator-of form) 'make-instance)
               (typep (first (arguments-of form)) 'constant-form))
-         (add-constraint (assign app-var (value-of (first (arguments-of form)))) env))
+         (add-constraint (unify app-var (value-of (first (arguments-of form)))) env))
         ;; Otherwise, the type of the application is the function return type
         (t
-         (add-constraint (assign app-var return-type) env)
-         (add-constraint (inst return-type app-var) env)
+         (add-constraint (unify app-var return-type) env)
+         (add-constraint (unify return-type app-var) env)
          ))
       app-var)))
 
@@ -602,13 +552,13 @@ Type parameters are substituted by type variables."
 
 (defmethod generate-type-constraints ((form free-function-object-form) env locals)
   (let ((var (new-var form env)))
-    (add-constraint (assign var (instantiate-type (get-func-type (name-of form) form env) env)) env)
+    (add-constraint (unify var (instantiate-type (get-func-type (name-of form) form env) env)) env)
     var))
 
 (defmethod generate-type-constraints ((form walked-lexical-variable-reference-form) env locals)
   (alexandria:if-let (local (assoc (name-of form) locals))
     (let ((var (new-var form env)))
-      (add-constraint (assign var (cdr local)) env)
+      (add-constraint (unify var (cdr local)) env)
       var)
     (error "Shouldn't happen")))
 
@@ -635,14 +585,14 @@ Type parameters are substituted by type variables."
      form env (append locals lambda-locals))
     (dolist (body-form (body-of form))
       (setq body-type (generate-type-constraints body-form env (append locals lambda-locals))))
-    (add-constraint (assign var `(function ,arg-types ,body-type)) env)
+    (add-constraint (unify var `(function ,arg-types ,body-type)) env)
     var))
 
 (defmethod generate-type-constraints ((form if-form) env locals)
   (let ((then-type (generate-type-constraints (then-of form) env locals))
         (else-type (generate-type-constraints (else-of form) env locals))
         (var (new-var form env)))
-    (add-constraint (assign var `(or ,then-type ,else-type)) env)
+    (add-constraint (unify var `(or ,then-type ,else-type)) env)
     var))
 
 (defun canonize-type (type)
@@ -685,7 +635,20 @@ Type parameters are substituted by type variables."
   (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
     (generate-type-constraints walked-form type-env nil)
-    (setf (type-env-solution type-env) (solve (type-env-constraints type-env)))
+    ;; First resolve type variables
+    (setf (type-env-solution type-env)
+          (resolve-type-vars
+           (mapcar (lambda (unify)
+                     (adt:match constraint unify
+                       ((unify t1 t2) (cons t1 t2))
+                       (_)))
+                   (remove-if-not (rcurry #'typep 'unify)
+                                  (type-env-constraints type-env)))))
+    ;; Then check type constraints
+    (setf (type-env-solution type-env)
+          (solve (remove-if (rcurry #'typep 'unify)
+                            (type-env-constraints type-env))
+                 (type-env-solution type-env)))    
     (let ((type-assignments nil))
       (dolist (type-assignment (type-env-solution type-env))
         (trivia:match type-assignment

@@ -33,26 +33,26 @@
   (check-is-subtypep (identity 22) number))
 
 (deftest check-the-form-test ()
-  (is (equalp (check-form '(the (list-of integer) '(1 2 3)))
+  (is (equalp (check-form '(the (list-of integer) (list 1 2 3)))
               '(list-of integer)))
   (signals type-checking-error (check-form '(the (list-of integer) 22)))
-  (is (equalp (check-form '(the (list-of integer) '("asdf")))
+  (is (equalp (check-form '(the (list-of integer) (list "asdf")))
               '(list-of integer))))
 
 (deftest check-parametric-types-test-2 ()
-  (check-is-equalp (mapcar #'+ (the (list-of number) '(1 2 3)))
+  (check-is-equalp (mapcar #'+ (the (list-of number) (list 1 2 3)))
                    (list-of number))
   (check-is-equalp (mapcar #'+ '(1 2 3))
                    (list-of number))
   (check-signals-error
    (mapcar #'+ (the (list-of string) '("lala" 2 3))))
   (check-is-equalp
-   (mapcar #'identity (the (list-of string) '("lala" 2 3)))
+   (mapcar #'identity (the (list-of string) (list "lala" 2 3)))
    (list-of string))
-  (check-is-equalp (mapcar #'identity (the (list-of string) '("lala" 2 3)))
+  (check-is-equalp (mapcar #'identity (the (list-of string) (list "lala" 2 3)))
                    (list-of string))
   (check-is-equalp
-   (mapcar #'print (the (list-of string) '("lala")))
+   (mapcar #'print (the (list-of string) (list "lala")))
    (list-of t))
 
   ;; (check-form '(mapcar #'identity (the list '("lala"))))
@@ -61,22 +61,22 @@
 
   ;; (check-form '(mapcar #'identity (the (list-of t) '("lala"))))
 
-  (check-is-subtypep (nth 10 (the (list-of string) '("foo" "bar")))
+  (check-is-subtypep (nth 10 (the (list-of string) (list "foo" "bar")))
                      string)
-  (check-signals-error (nth "lala" (the (list-of string) '("foo" "bar"))))
+  (check-signals-error (nth "lala" (the (list-of string) (list "foo" "bar"))))
 
   (check-is-subtypep
-   (let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+   (let ((list (mapcar #'identity (the (list-of string) (list "lala")))))
      (nth 1 list))
    string)
 
   (check-is-subtypep
-   (let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+   (let ((list (mapcar #'identity (the (list-of string) (list "lala")))))
      (first list))
    string)
 
   (check-is-subtypep
-   (let ((list (mapcar #'identity (the (list-of string) '("lala")))))
+   (let ((list (mapcar #'identity (the (list-of string) (list "lala")))))
      (rest list))
    (list-of string)))
 
