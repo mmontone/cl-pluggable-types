@@ -2,6 +2,11 @@
 ;; https://www.youtube.com/watch?v=utyBNDj7s2w
 ;; https://jaked.org/blog/2021-09-07-Reconstructing-TypeScript-part-0
 
+;; TODO: there's a problem with unresolved variables when type-checking.
+;; Try with a two-pass algorithm. Resolve variables in the first pass.
+;; Then apply bidirectional typechecking with variables resolved.
+;; The 'constraints' type-system does that.
+
 (in-package :pluggable-types/bid)
 
 (defvar *use-compiler-provided-types* t
