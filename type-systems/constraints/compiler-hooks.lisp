@@ -12,6 +12,9 @@
 (defun type-check-warn (type-error)
   (warn (mutils-utils:condition-message type-error)))
 
+(defun type-check-error (type-error)
+  (error (mutils-utils:condition-message type-error)))
+
 (defun load-type-declaration (expr)
   "Read and load the type declaration, if EXPR is a type declaration."
   (trivia:match expr
