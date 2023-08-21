@@ -436,10 +436,8 @@ ASSIGNMENT is CONS of VAR to a TERM."
   (let ((var (new-var form env))
         (value-type (generate-type-constraints (value-of form) env locals)))
     (add-constraint (unify var (declared-type-of form)) env)
-    ;; The declared type is a subtype of the form type (coercion).
     (add-constraint (unify (declared-type-of form) value-type) env)
-    ;; This causes trouble. How to check?
-    ;;(add-constraint (subtype var value-type) env)    
+    (add-constraint (subtype value-type var) env)
     var))
 
 (defmethod generate-type-constraints ((form setq-form) env locals)
