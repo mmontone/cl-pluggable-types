@@ -468,6 +468,39 @@ ASSIGNMENT is CONS of VAR to a TERM."
     (add-constraint (unify var 't) env)
     var))
 
+(define-condition return-type-condition ()
+  ((form :initarg :form
+         :accessor return-type-form)
+   (block :initarg :block
+          :accessor return-type-block)
+   (type :initarg :type
+         :accessor return-type)))
+
+(defmethod generate-type-constraints ((form block-form) env locals)
+  (let ((return-types '()))
+    (handler-bind
+        ((return-type-condition
+           (lambda (c)
+             (when (eq (return-type-block c) form)
+               (push (return-type c) return-types)))))
+      (let ((body-type t))
+        (dolist (body-form (body-of form))
+          (setq body-type (generate-type-constraints body-form env locals)))
+        (let* ((return-type (if (null return-types)
+                                body-type
+                                `(or ,body-type ,@return-types)))
+               (var (new-var form env)))
+          (add-constraint (unify var return-type) env)
+          var)))))
+
+(defmethod generate-type-constraints ((form return-from-form) env locals)
+  (let ((type (generate-type-constraints (result-of form) env locals)))
+    (signal 'return-type-condition
+            :type type
+            :form form
+            :block (target-block-of form))
+    type))          
+
 (declaim (ftype (function (t type-env) t) instantiate-type))
 (defun instantiate-type (type env)
   "Create an instance of TYPE in ENV.
@@ -661,7 +694,7 @@ Type parameters are substituted by type variables."
              (push (cons expr
                          (arrows:->> type
                                      (apply-substitution* (type-env-solution type-env))
-                                     (canonize-type)
+                                     ;;(canonize-type)
                                      (generalize-type)))
                    type-assignments)))))
       (values
