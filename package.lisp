@@ -1,18 +1,12 @@
-(defpackage gradual
-  ;; TODO: use 'pluggable-types' as package name, not nickname
-  (:nicknames :pluggable-types)
-  (:use :cl :cl-walker :anaphora :alexandria :mw-equiv)
-  (:export #:fun-type
-	   #:var-type
-	   #:return-type
-	   #:defun-type
-	   #:typecheck
-	   #:typecheck-everything
-	   #:infer-type
-	   #:fun
-	   #:gradual-type-error
-           #:type-system
-	   #:gradual-type-system
-	   ;; Types
-	   #:alist
-	   #:plist))
+(defpackage pluggable-types
+  (:use :cl :anaphora :alexandria
+        :polymorphic-types :polymorphic-cl-types)
+  (:export #:typecheck
+	   #:check-form
+           #:type-system-check-form
+	   #:type-system
+           #:*compile-checks*
+           #:*debug-compile-checks*
+           #:*type-error-reporter*
+           #:type-checking-error
+           #:type-inconsistency-error))

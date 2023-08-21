@@ -1,4 +1,4 @@
-(in-package :pluggable-types/const)
+(in-package :pluggable-types)
 
 (defvar *compile-checks* nil
   "When enabled, run the type checker when a file or function is compiled.")
@@ -33,7 +33,7 @@
       (funcall func)
       (handler-case
           (funcall func)
-        (pluggable-types/const::type-checking-error (e)
+        (type-checking-error (e)
           (funcall *type-error-reporter* e))
         (error (e)
           (warn 'simple-warning
@@ -47,7 +47,7 @@
      (mapcar #'type-check-definition forms))
     ((cons 'defun _)
      (call-with-type-error-handler
-      (lambda () (pluggable-types/const::check-form expr))))))
+      (lambda () (check-form expr))))))
 
 (defun load-file-type-declarations (file &rest args)
   (declare (ignore args))

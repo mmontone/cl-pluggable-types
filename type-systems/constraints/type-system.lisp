@@ -1,28 +1,15 @@
 ;; https://dada.cs.washington.edu/research/tr/1998/01/UW-CSE-98-01-01.pdf
 
-(defpackage :pluggable-types/const
-  (:use :cl :alexandria :hu.dwim.walker
-   :polymorphic-types
-        :polymorphic-cl-types)
-  (:export #:check-form
-           #:type-checking-error
-           #:types-compatible-p))
-
 (in-package :pluggable-types/const)
 
 (defvar *debug-solver* nil
   "When enabled, unification steps are printed to *STANDARD-OUTPUT*")
 
-(define-condition type-checking-error (simple-error)
-  ((form :initarg :form
-         :accessor error-form)
-   (source :initarg :source
-           :accessor error-source)
-   (position :initarg :position
-             :accessor error-position)))
-
-(define-condition type-inconsistency-error (type-checking-error)
-  ())
+(defclass constraints-type-system (type-system)
+  ((debug-solver :initarg :debug-solver
+                 :type boolean
+                 :initform *debug-solver*
+                 :documentation "When enabled, unification steps are printed to *STANDARD-OUTPUT*")))
 
 (adt:defdata type-var
   (var t t)
@@ -358,7 +345,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
    ;; Try from locals in ENV first
    (cdr (assoc func-name (type-env-ftypes env)))
    ;; Then try to get from the read declarations
-   (cdr (assoc func-name *funtypes*))
+   (cdr (assoc func-name pluggable-types::*funtypes*))
    ;; If none found, use compiler information
    (and *use-compiler-provided-types*
         (compiler-info:function-type func-name))
@@ -658,7 +645,8 @@ Type parameters are substituted by type variables."
              (setq subst-term (apply-substitution assignments subst-term)))
     subst-term))
 
-(defun check-form (form &optional env)
+(defmethod type-system-check-form ((type-system constraints-type-system)
+                                   form &optional env)
   "Infer the type of FORM."
   (let ((type-env (or env (make-type-env)))
         (walked-form (hu.dwim.walker:walk-form form)))
@@ -696,6 +684,3 @@ Type parameters are substituted by type variables."
        type-assignments
        ;; type environment
        type-env))))
-
-(defun check-form* (&rest args)
-  (first (multiple-value-list (apply #'check-form args))))

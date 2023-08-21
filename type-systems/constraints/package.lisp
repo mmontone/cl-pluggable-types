@@ -1,5 +1,8 @@
 (defpackage :pluggable-types/const
-  (:use :cl :alexandria :hu.dwim.walker :polymorphic-types)
-  (:export #:check-form
-           #:type-checking-error
-           #:types-compatible-p))
+  (:use
+   :cl :alexandria :hu.dwim.walker
+   :pluggable-types
+   :polymorphic-types
+   :polymorphic-cl-types)
+  (:export
+   #:constraints-type-system))

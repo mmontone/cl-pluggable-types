@@ -1,4 +1,4 @@
-(in-package :gradual)
+(in-package :pluggable-types)
 
 (defun parse-typed-lambda-list (lambda-list &key (normalize t)
 					      allow-specializers

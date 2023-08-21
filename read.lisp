@@ -1,21 +1,11 @@
-(in-package :pluggable-types/const)
+(in-package :pluggable-types)
 
-(defvar *funtypes* nil)
-(defvar *vartypes* nil)
-
-(declaim (ftype (function (pathname) (list-of t)) typecheck-file))
-(defun typecheck-file (file)
-  (let (defs)
-    (with-open-file (in file)
-      (let ((eof (list nil)))
-        (do ((file-position (file-position in) (file-position in))
-             (code (read in nil eof) (read in nil eof)))
-            ((eq code eof) (values))
-          (let ((def (handler-case (hu.dwim.walker:walk-form code)
-                       (error (e)
-                         e))))
-            (push (cons file-position def) defs)))))
-    (nreverse defs)))
+(declaim (type (alist-of symbol t) *funtypes*))
+(defvar *funtypes* nil
+  "Association list of top-level function types. (function-name . function-type)")
+(declaim (type (alist-of symbol t) *vartypes*))
+(defvar *vartypes* nil
+  "Association list of global variables. (varname . vartype)")
 
 (declaim (ftype* (function (pathname) (values (list-of t) (list-of t))) read-type-declarations-from-file))
 (defun read-type-declarations-from-file (pathname)
@@ -68,4 +58,4 @@
 ;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
 
 (load-type-declarations-from-file
- (probe-file (asdf:system-relative-pathname :pluggable-types-const "polymorphic-cl-types.lisp")))
+ (probe-file (asdf:system-relative-pathname :pluggable-types "polymorphic-cl-types.lisp")))
