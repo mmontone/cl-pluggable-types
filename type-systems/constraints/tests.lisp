@@ -3,6 +3,8 @@
 
 (in-package :pluggable-types/const/tests)
 
+(defmacro let-ftypes ())
+
 (defmacro check-is-equalp (form type)
   `(is (equalp (check-form ',form) ',type)))
 
@@ -196,3 +198,16 @@
    (list-of integer))
 
   )
+
+
+;; Keys test
+;; (declaim (ftype (function (&key (:x integer) (:y integer)) integer)
+;;                 keys-test))
+;; (defun keys-test (&key x y)
+;;   (+ x y))
+
+;; (defun foo ()
+;;   (keys-test :x 22 :y "adf"))
+
+;; (defun foo ()
+;;   (keys-test :x 22 :y 44))

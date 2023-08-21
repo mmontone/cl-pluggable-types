@@ -240,7 +240,7 @@ ASSIGNMENT is CONS of VAR to a TERM."
                     term2)))
     ((list _ (list '&rest rtype))
      (apply #'append
-            (mapcar (rcurry #'resolve-type-vars rtype) term1)))
+            (mapcar (rcurry #'resolve-type-vars-one rtype) term1)))
     ((list (cons t1 ts1)
            (cons t2 ts2))
      (append (resolve-type-vars-one t1 t2)
@@ -552,19 +552,13 @@ Type parameters are substituted by type variables."
                 generate-function-application-constraints))
 (defun generate-function-application-constraints (func-type form env locals)
   "Generate type constraints for function application."
-  (let ((arg-types (assign-types-from-function-type-2 func-type form))
-        (arg-vars nil))
-
+  (let ((arg-types-assignment (assign-types-from-function-type-2 func-type form)))
     ;; Constraint the types of the arguments
-    (loop for arg in (arguments-of form)
-          for arg-type in arg-types
+    (loop for (arg . formal-arg-type) in arg-types-assignment
+          for actual-arg-type := (generate-type-constraints arg env locals)
           do
-             (let ((arg-var (new-var arg env))
-                   (actual-arg (generate-type-constraints arg env locals)))
-               (add-constraint (unify arg-var (cdr arg-type)) env)
-               (add-constraint (subtype actual-arg arg-var) env)
-               (add-constraint (unify actual-arg (cdr arg-type)) env)
-               (push arg-var arg-vars)))
+             (add-constraint (unify formal-arg-type actual-arg-type) env)
+             (add-constraint (subtype actual-arg-type formal-arg-type) env))
 
     ;; Constraint the type of the application
     (let* ((return-type (lastcar func-type))
