@@ -129,7 +129,7 @@
    ;; Try from locals in ENV first
    (cdr (assoc func-name (type-env-ftypes env)))
    ;; Then try to get from the read declarations
-   (cdr (assoc func-name *funtypes*))
+   (cdr (assoc func-name pluggable-types::*funtypes*))
    ;; If none found, use compiler information
    (and *use-compiler-provided-types*
         (compiler-info:function-type func-name))
@@ -527,7 +527,8 @@ PAIRS is a list of CONSes, with (old . new)."
 (defmethod infer-type ((form walked-form) env)
   (error "Implement: ~s" form))
 
-(defun check-form (form &optional env)
+(defmethod type-system-check-form ((type-system bidirectional-type-system)
+                                   form &optional env)
   (let ((env (or env (make-type-env)))
         (form (if (typep form 'walked-form)
                   form
