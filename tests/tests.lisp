@@ -1,15 +1,13 @@
-(fiasco:define-test-package :pluggable-types/const/tests
-  (:use :cl :fiasco :pluggable-types/const :arrows :polymorphic-types))
+(fiasco:define-test-package :pluggable-types/tests
+  (:use :cl :fiasco :pluggable-types :arrows :polymorphic-types))
 
-(in-package :pluggable-types/const/tests)
-
-(defmacro let-ftypes ())
+(in-package :pluggable-types/tests)
 
 (defmacro check-is-equalp (form type)
   `(is (equalp (check-form ',form) ',type)))
 
 (defmacro check-is-subtypep (form type)
-  `(is (types-compatible-p (check-form ',form) ',type)))
+  `(is (subtypep (check-form ',form) ',type)))
 
 (defmacro check-signals-error (form)
   `(signals type-checking-error
