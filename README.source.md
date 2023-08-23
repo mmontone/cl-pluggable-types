@@ -76,11 +76,18 @@ and `(hash-table-of t t)` expands to `hash-table`, so, the final type is:
     (declaim (ftype (function (hash-table t) t)
                     get-hash))
 
-### Typechecking backends
+### Type checkers
+
+There are two type checkers at the moment. Both incomplete and incorrect.
+Both use `hu.dwim.walker` library to obtain an Abstract Syntax Tree of the Lisp code and walk it.
 
 #### Constraints
 
+The `constraints` type checker applies unification to resolve type variables, then generates constraints, and solves them. 
+
 #### Bidirectional
+
+The `bidirectional` type checker applies syntax-directed type checking.
 
 ### Compiler hooks
 
