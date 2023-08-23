@@ -48,11 +48,33 @@ The type parameters are simply ignored in the type definition:
         (declare (ignore type))
         'list)
         
+Used in a top-level function type:
+
+    (declaim (ftype (function ((list-of string)) string)
+                    my-func))
+        
 That means that parametric types can be used in code that does not depend on and does not load the `pluggable-types` library. Parameter types won't be checked by Common Lisp type system, but they would still be useful as documentation, and useful for when a pluggable type system is used to check them properly. 
         
 ### Polymorphic types
 
+Polymorphic types are specified using `all` to bind the type variables.
 
+For example:
+
+    (declaim (ftype (all (a b) (function ((hash-table-of a b) a) b))
+                    get-hash))
+                    
+Like with parametric types, polymorphic type variables are expanded to the T type. That means they can be used in normal Common Lisp code without depending on the loading of a typechecking library.
+
+For instance, the above type gets expanded to the valid Common Lisp type:
+
+    (declaim (ftype (function ((hash-table-of t t) t) t)
+                    get-hash))
+                    
+and `(hash-table-of t t)` expands to `hash-table`, so, the final type is:
+
+    (declaim (ftype (function (hash-table t) t)
+                    get-hash))
 
 ### Typechecking backends
 
