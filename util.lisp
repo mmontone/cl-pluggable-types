@@ -369,3 +369,9 @@ Signals a PROGRAM-ERROR is the lambda-list is malformed."
               (simple-program-error "Invalid types lambda-list:~%  ~S" lambda-list)))))))
     (values (nreverse required) (nreverse optional) rest (nreverse keys)
             allow-other-keys (nreverse aux) keyp)))
+
+#+util
+(defun format-readme ()
+  (clhs-linker:link-file
+   (asdf:system-relative-pathname :pluggable-types "README.source.md")
+   (asdf:system-relative-pathname :pluggable-types "README.md")))

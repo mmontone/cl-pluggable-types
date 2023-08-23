@@ -1,6 +1,6 @@
 Implementation of a [pluggable](http://bracha.org/pluggable-types.pdf "Pluggable type systems") [gradual](http://ecee.colorado.edu/~siek/gradualtyping.html "Gradual typing") type system for Common Lisp.
 
-Status: THIS IS VAPORWARE [AND](http://www.lispworks.com/reference/HyperSpec/Body/a_and.htm) I DON'[T](http://www.lispworks.com/reference/HyperSpec/Body/a_t.htm) KNOW WHAT I'M DOING.
+Status: THIS IS VAPORWARE AND I DON'T KNOW WHAT I'M DOING.
 
 ## Papers
 
@@ -36,9 +36,9 @@ Here I describe my current approach for an implementation.
 
 A library of parametric versions of Common Lisp types. The types fallback to 'normal' CL types, so they can be imported and used with no dependency on the pluggable type system.
 
-For example, the type `list-of`, the parametric version of the [LIST](http://www.lispworks.com/reference/HyperSpec/Body/a_list.htm) type, that takes the type of its elements by parameter.
+For example, the type `list-of`, the parametric version of the LIST type, that takes the type of its elements by parameter.
 
-It is possible to use them in normal type declarations ([TYPE](http://www.lispworks.com/reference/HyperSpec/Body/a_type.htm) or [FTYPE](http://www.lispworks.com/reference/HyperSpec/Body/d_ftype.htm)), as they get expanded to the equivalent Lisp type.
+It is possible to use them in normal type declarations (TYPE or FTYPE), as they get expanded to the equivalent Lisp type.
 
     (list-of integer) expands to list
     
