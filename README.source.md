@@ -91,4 +91,14 @@ The `bidirectional` type checker applies syntax-directed type checking.
 
 ### Compiler hooks
 
+The typecheckers are hooked into the Lisp compilation workflow via the [compiler-hooks](https://github.com/mmontone/mutils/blob/master/docs/compiler-hooks.md) library. So, after a function or file is compiled, a typechecking is performed if enabled.
+
 ### Control via declarations
+
+What gets typechecked or not can be controlled via the `typecheck` DECLARATION.
+
+It has the following syntax:
+
+    (typecheck enabled? scope)
+    
+where `enabled?` is a boolean, and `scope` one of `:package`, `:file` or the name of a function.

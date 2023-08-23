@@ -48,14 +48,57 @@ The type parameters are simply ignored in the type definition:
         (declare (ignore type))
         'list)
         
+Used in a top-level function type:
+
+    (declaim (ftype (function ((list-of string)) string)
+                    my-func))
+        
+That means that parametric types can be used in code that does not depend on and does not load the `pluggable-types` library. Parameter types won't be checked by Common Lisp type system, but they would still be useful as documentation, and useful for when a pluggable type system is used to check them properly. 
+        
 ### Polymorphic types
 
-### Typechecking backends
+Polymorphic types are specified using `all` to bind the type variables.
+
+For example:
+
+    (declaim (ftype (all (a b) (function ((hash-table-of a b) a) b))
+                    get-hash))
+                    
+Like with parametric types, polymorphic type variables are expanded to the [T](http://www.lispworks.com/reference/HyperSpec/Body/a_t.htm) type. That means they can be used in normal Common Lisp code without depending on the loading of a typechecking library.
+
+For instance, the above type gets expanded to the valid Common Lisp type:
+
+    (declaim (ftype (function ((hash-table-of t t) t) t)
+                    get-hash))
+                    
+and `(hash-table-of t t)` expands to `hash-table`, so, the final type is:
+
+    (declaim (ftype (function (hash-table t) t)
+                    get-hash))
+
+### Type checkers
+
+There are two type checkers at the moment. Both incomplete and incorrect.
+Both use `hu.dwim.walker` library to obtain an Abstract Syntax Tree of the Lisp code and walk it.
 
 #### Constraints
 
+The `constraints` type checker applies unification to resolve type variables, then generates constraints, and solves them. 
+
 #### Bidirectional
+
+The `bidirectional` type checker applies syntax-directed type checking.
 
 ### Compiler hooks
 
+The typecheckers are hooked into the Lisp compilation workflow via the [compiler-hooks](https://github.com/mmontone/mutils/blob/master/docs/compiler-hooks.md) library. So, after a function or file is compiled, a typechecking is performed if enabled.
+
 ### Control via declarations
+
+What gets typechecked or not can be controlled via the `typecheck` [DECLARATION](http://www.lispworks.com/reference/HyperSpec/Body/d_declar.htm).
+
+It has the following syntax:
+
+    (typecheck enabled? scope)
+    
+where `enabled?` is a boolean, and `scope` one of `:package`, `:file` or the name of a function.
