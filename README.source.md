@@ -48,7 +48,11 @@ The type parameters are simply ignored in the type definition:
         (declare (ignore type))
         'list)
         
+That means that parametric types can be used in code that does not depend on and does not load the `pluggable-types` library. Parameter types won't be checked by Common Lisp type system, but they would still be useful as documentation, and useful for when a pluggable type system is used to check them properly. 
+        
 ### Polymorphic types
+
+
 
 ### Typechecking backends
 
