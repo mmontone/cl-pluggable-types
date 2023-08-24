@@ -5,4 +5,4 @@
    :polymorphic-types
    :polymorphic-cl-types)
   (:export
-   #:constraints-type-system))
+   #:constraints-type-checker))

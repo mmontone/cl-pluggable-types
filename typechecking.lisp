@@ -9,4 +9,4 @@
   (when *debug*
     (apply #'format args)))
 
-(defgeneric typecheck-everything (type-system &optional output))
+(defgeneric typecheck-everything (type-checker &optional output))

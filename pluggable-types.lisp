@@ -1,17 +1,17 @@
 (in-package :pluggable-types)
 
-(defvar *type-system* nil
+(defvar *type-checker* nil
   "The default type system to use.")
 
-(defclass type-system ()
+(defclass type-checker ()
   ())
 
-(defgeneric type-system-check-form (type-system form &optional env))
+(defgeneric type-checker-check-form (type-checker form &optional env))
 
-(defun check-form (form &key env (type-system *type-system*))
-  (unless type-system
-    (error "No type system selected. Set *TYPE-SYSTEM*"))
-  (type-system-check-form type-system form env))
+(defun check-form (form &key env (type-checker *type-checker*))
+  (unless type-checker
+    (error "No type system selected. Set *TYPE-CHECKER*"))
+  (type-checker-check-form type-checker form env))
 
 (define-condition type-checking-error (simple-error)
   ((form :initarg :form

@@ -5,7 +5,7 @@
 ;; TODO: there's a problem with unresolved variables when type-checking.
 ;; Try with a two-pass algorithm. Resolve variables in the first pass.
 ;; Then apply bidirectional typechecking with variables resolved.
-;; The 'constraints' type-system does that.
+;; The 'constraints' type-checker does that.
 
 (in-package :pluggable-types/bid)
 
@@ -527,7 +527,7 @@ PAIRS is a list of CONSes, with (old . new)."
 (defmethod infer-type ((form walked-form) env)
   (error "Implement: ~s" form))
 
-(defmethod type-system-check-form ((type-system bidirectional-type-system)
+(defmethod type-checker-check-form ((type-checker bidirectional-type-checker)
                                    form &optional env)
   (let ((env (or env (make-type-env)))
         (form (if (typep form 'walked-form)

@@ -51,11 +51,5 @@
           ((eq code eof) (values))
         (funcall func code)))))
 
-;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
-
-;; (read-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/cl-types.lisp"))
-
-;; (load-type-declarations-from-file (asdf:system-relative-pathname :pluggable-types-decl "type-systems/decl/read.lisp"))
-
 (load-type-declarations-from-file
  (probe-file (asdf:system-relative-pathname :pluggable-types "polymorphic-cl-types.lisp")))

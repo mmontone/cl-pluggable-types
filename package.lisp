@@ -3,8 +3,8 @@
         :polymorphic-types :polymorphic-cl-types)
   (:export #:typecheck
 	   #:check-form
-           #:type-system-check-form
-	   #:type-system
+           #:type-checker-check-form
+	   #:type-checker
            #:*compile-checks*
            #:*debug-compile-checks*
            #:*type-error-reporter*

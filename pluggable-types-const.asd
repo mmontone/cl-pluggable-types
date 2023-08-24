@@ -5,13 +5,13 @@
   :licence "MIT"
   :components
   ((:file "trivia-functions")
-   (:module "type-systems"
+   (:module "type-checkers"
     :components
     ((:module "constraints"
       :components
       ((:file "package")
        (:file "util")
-       (:file "type-system"))))))
+       (:file "type-checker"))))))
   :depends-on (:pluggable-types
                :trivia
                :hu.dwim.walker

@@ -5,7 +5,7 @@
 (defvar *debug-solver* nil
   "When enabled, unification steps are printed to *STANDARD-OUTPUT*")
 
-(defclass constraints-type-system (type-system)
+(defclass constraints-type-checker (type-checker)
   ((debug-solver :initarg :debug-solver
                  :type boolean
                  :initform *debug-solver*
@@ -645,7 +645,7 @@ Type parameters are substituted by type variables."
              (setq subst-term (apply-substitution assignments subst-term)))
     subst-term))
 
-(defmethod type-system-check-form ((type-system constraints-type-system)
+(defmethod type-checker-check-form ((type-checker constraints-type-checker)
                                    form &optional env)
   "Infer the type of FORM."
   (let ((type-env (or env (make-type-env)))
