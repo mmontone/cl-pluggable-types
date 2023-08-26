@@ -4,6 +4,7 @@
    #:all
    #:cons-of
    #:list-of
+   #:sequence-of
    #:alist
    #:alist-of
    #:hash-table-of
@@ -19,6 +20,10 @@
 (deftype list-of (a) 
   (declare (ignore a))
   'list)
+
+(deftype sequence-of (a)
+  (declare (ignore a))
+  'sequence)
 
 (deftype cons-of (a b)
   (declare (ignore a b))
