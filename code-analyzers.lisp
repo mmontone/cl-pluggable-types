@@ -161,8 +161,14 @@ Examples:
                 :format-control "Error analyzing: ~a"
                 :format-arguments (list (condition-message e)))))))
 
-(defun should-analyze-p (analyzer file)
-  (not (member file (ignored-files analyzer))))
+(defun should-analyze-p (analyzer thing)
+  (etypecase thing
+    (package
+     (not (member (package-name thing) (ignored-packages analyzer))))
+    (pathname
+     (not (member thing (ignored-files analyzer))))
+    (symbol
+     (not (member thing (ignored-definitions analyzer))))))
 
 (defun analyze-file-hook (file &rest args)
   (declare (ignore args))
