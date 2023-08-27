@@ -1,6 +1,10 @@
 (defpackage :code-analyzers
   (:use :cl :alexandria)
-  (:export #:code-analyzer)
+  (:export #:code-analyzer
+           #:analyze
+           #:*code-analyzers*
+           #:*code-analyzers-enabled*
+           #:*debug-code-analyzers*)
   (:documentation "Abstract interface for running code analyzers."))
 
 (in-package :code-analyzers)
