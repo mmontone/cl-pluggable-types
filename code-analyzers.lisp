@@ -1,10 +1,17 @@
+(require :alexandria)
+
 (defpackage :code-analyzers
   (:use :cl :alexandria)
   (:export #:code-analyzer
            #:analyze
+           #:find-code-analyzer
            #:*code-analyzers*
            #:*code-analyzers-enabled*
-           #:*debug-code-analyzers*)
+           #:*debug-code-analyzers*
+           #:analyze-file
+           #:analyze-definition
+           #:read-lisp-file-definitions
+           #:register-code-analyzer)
   (:documentation "Abstract interface for running code analyzers."))
 
 (in-package :code-analyzers)
@@ -55,7 +62,7 @@
   (:documentation "A code analyzer"))
 
 ;; Use the ANALYZE declaration to control what gets analyzed.
-;; Syntax: (ANALIZE analizer-name option &rest args)
+;; Syntax: (ANALYZE analyzer-name option &rest args)
 (declaim (declaration analyze))
 
 (defun condition-message (condition)
@@ -69,14 +76,97 @@
 (defun analyzer-error (error)
   (error (condition-message error)))
 
-(defgeneric analyze-definition (analizer definition)
-  (:documentation "Use ANALIZER to analyzed DEFINITION."))
+(defgeneric analyze-definition (analyzer definition)
+  (:documentation "Use ANALYZER to analyzed DEFINITION."))
 
-(defgeneric analyze-file (analizer file)
-  (:documentation "Use ANALIZER to analyze FILE."))
+(defgeneric analyze-file (analyzer file)
+  (:documentation "Use ANALYZER to analyze FILE.
+May want to use READ-LISP-FILE-DEFINITIONS."))
 
 (defgeneric process-declaration (analyzer option args)
   (:documentation "Process ANALYZE declaration."))
+
+(declaim (ftype (function (symbol code-analyzer) t)
+                register-code-analyzer))
+(defun register-code-analyzer (name code-analyzer)
+  "Register CODE-ANALYZER under NAME."
+  (setf (gethash (the symbol name) *code-analyzers*)
+        (the code-analyzer code-analyzer)))
+
+(defun call-with-analyzer-error-handler (func)
+  (if *debug-code-analyzers*
+      (funcall func)
+      (handler-case
+          (funcall func)
+        (error (e)
+          (warn 'simple-warning
+                :format-control "Error analyzing: ~a"
+                :format-arguments (list (condition-message e)))))))
+
+(defmethod analyze-file ((analyzer code-analyzer) file)
+  "The default file analyzer. Read the file definitions and invoke ANALYZE-DEFINITION."
+  (read-lisp-file-definitions
+   file
+   (curry #'analyze-definition analyzer)))
+
+(defun should-analyze-p (analyzer thing)
+  (etypecase thing
+    (package
+     (not (member (package-name thing) (ignored-packages analyzer))))
+    (pathname
+     (not (member thing (ignored-files analyzer))))
+    (symbol
+     (not (member thing (ignored-definitions analyzer))))))
+
+(defun find-code-analyzer (name &optional (error-p t))
+  "Find a code analyzer by name."
+  (or (gethash name *code-analyzers*)
+      (and error-p (error "Code analyzer not available: ~s" name))))
+
+(defun analyze-file-hook (file &rest args)
+  (declare (ignore args))
+  (when *code-analyzers-enabled*
+    (dolist (analyzer *code-analyzers*)
+      (when (should-analyze-p analyzer file)
+        (analyze-file analyzer file)))))
+
+(declaim (ftype (function (pathname (or symbol function)) t)
+                read-lisp-file-edefinitions))
+(defun read-lisp-file-definitions (pathname func)
+  "General purpose function for reading definitions from a lisp file."
+  (with-open-file (in pathname)
+    (let ((eof (list nil)))
+      (do ((file-position (file-position in) (file-position in))
+           (code (read in nil eof) (read in nil eof)))
+          ((eq code eof) (values))
+        (funcall func code)))))
+
+(push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
+
+;; The declarations analyzer
+
+(defvar *ignore-declarations-errors* nil)
+
+(defclass declarations-controller-code-analyzer (code-analyzer)
+  ()
+  (:documentation "Reads ANALYZE declarations to control CODE-ANALYZERs behaviour."))
+
+(defmethod analyze-definition ((analyzer declarations-controller-code-analyzer) definition)
+  "Read ANALYZE declarations to control CODE-ANALYZERs behaviour."
+  
+  (when (and (listp definition)
+             (eql (car definition) 'declaim))
+    (dolist (declaration (rest definition))
+      (when (and (listp declaration)
+                 (eql (car declaration) 'analyze))
+        (destructuring-bind (analyze analyzer-name option &rest args)
+            declaration
+          (declare (ignore analyze))
+          (let ((code-analyzer (find-code-analyzer analyzer-name (not *ignore-declarations-errors*))))
+            (unless code-analyzer
+              (warn "Code analyzer not found: ~s" analyzer-name))
+            (when code-analyzer
+              (process-declaration code-analyzer option args))))))))
 
 (defun parse-analyzer-scope (scope)
   "Parse elements in SCOPE.
@@ -107,7 +197,7 @@ The elements in SCOPE can be:
          (push element definitions))))
     (values definitions files packages)))
 
-(defmethod process-declaration ((analyzer code-analyzer)
+(defmethod process-declaration ((analyzer declarations-controller-code-analyzer)
                                 (option (eql :analyze))
                                 scope)
   "Enable analysis for elements in SCOPE.
@@ -131,7 +221,7 @@ Examples:
     (appendf (files analyzer) files)
     (appendf (definitions analyzer) definitions)))
 
-(defmethod process-declaration ((analyzer code-analyzer)
+(defmethod process-declaration ((analyzer declarations-controller-code-analyzer)
                                 (option (eql :ignore))
                                 scope)
   "Disable analysis for elements in SCOPE.
@@ -155,30 +245,5 @@ Examples:
     (appendf (ignored-files analyzer) files)
     (appendf (ignored-definitions analyzer) definitions)))
 
-(defun call-with-analyzer-error-handler (func)
-  (if *debug-code-analyzers*
-      (funcall func)
-      (handler-case
-          (funcall func)
-        (error (e)
-          (warn 'simple-warning
-                :format-control "Error analyzing: ~a"
-                :format-arguments (list (condition-message e)))))))
-
-(defun should-analyze-p (analyzer thing)
-  (etypecase thing
-    (package
-     (not (member (package-name thing) (ignored-packages analyzer))))
-    (pathname
-     (not (member thing (ignored-files analyzer))))
-    (symbol
-     (not (member thing (ignored-definitions analyzer))))))
-
-(defun analyze-file-hook (file &rest args)
-  (declare (ignore args))
-  (when *code-analyzers-enabled*
-    (dolist (analyzer *code-analyzers*)
-      (when (should-analyze-p analyzer file)
-        (analyze-file analyzer file)))))
-
-(push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
+(register-code-analyzer 'declarations-controller
+                        (make-instance 'declarations-controller-code-analyzer))
