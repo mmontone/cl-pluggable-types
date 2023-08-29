@@ -29,6 +29,9 @@
 (defvar *analyzed-file* nil
   "Current file being analyzed.")
 
+(defvar *analyzed-package* nil
+  "The current package being analyzed.")
+
 (defvar *ignore-declarations-errors* nil)
 
 (defclass code-analyzer ()
@@ -118,7 +121,13 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
   "The default file analyzer. Read the file definitions and invoke ANALYZE-DEFINITION."
   (read-lisp-file-definitions
    file
-   (curry #'analyze-definition analyzer)))
+   (lambda (code)
+     (unless (or (member file (ignored-files analyzer))
+                 (or (null *analyzed-package*)
+                     (member *analyzed-package* (ignored-packages analyzer)))
+                 (and (eql (car code) 'defun)
+                      (member (cadr code) (ignored-definitions analyzer))))
+       (analyze-definition analyzer code)))))
 
 (defun should-analyze-p (analyzer thing)
   (etypecase thing
@@ -134,17 +143,6 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
   (or (gethash name *code-analyzers*)
       (and error-p (error "Code analyzer not available: ~s" name))))
 
-(defun analyze-file-hook (file &rest args)
-  (declare (ignore args))
-  ;; Always analyze with a CONTROLLER-CODE-ANALYZER first
-  (analyze-file (make-instance 'controller-code-analyzer) file)
-  ;; Then use
-  (when *code-analyzers-enabled*
-    (dolist (analyzer *code-analyzers*)
-      (when (and (analyzer-enabled-p analyzer)
-                 (should-analyze-p analyzer file))
-        (analyze-file analyzer file)))))
-
 (declaim (ftype (function (pathname (or symbol function)) t)
                 read-lisp-file-edefinitions))
 (defun read-lisp-file-definitions (pathname func)
@@ -155,8 +153,6 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
            (code (read in nil eof) (read in nil eof)))
           ((eq code eof) (values))
         (funcall func code)))))
-
-(push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
 
 (defun parse-analyzer-scope (scope)
   "Parse elements in SCOPE.
@@ -258,3 +254,20 @@ Examples:
                                 (option (eql :debug))
                                 value)
   (setf *debug-code-analyzers* (not (not (car value)))))
+
+;; compiler hooks
+
+(defun analyze-file-hook (file &rest args)
+  (declare (ignore args))
+  ;; Always analyze with a CONTROLLER-CODE-ANALYZER first
+  (analyze-file (make-instance 'controller-code-analyzer) file)
+  ;; Then use
+  (when *code-analyzers-enabled*
+    (dolist (analyzer *code-analyzers*)
+      (when (and (analyzer-enabled-p analyzer)
+                 (should-analyze-p analyzer file))
+        (analyze-file analyzer file)))))
+
+(push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
+
+(provide :code-analyzers)
