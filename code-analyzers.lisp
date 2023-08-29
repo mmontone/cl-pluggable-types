@@ -4,6 +4,7 @@
   (:use :cl :alexandria)
   (:export #:code-analyzer
            #:analyze
+           #:analyzers
            #:find-code-analyzer
            #:*code-analyzers*
            #:*code-analyzers-enabled*
