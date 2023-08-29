@@ -71,7 +71,6 @@
 ;; Use the ANALYZE declaration to control what gets analyzed.
 ;; Syntax: (ANALYZE analyzer-name option &rest args)
 ;; Default options:
-;; - :enabled, followed by a boolean.
 ;; - :analyze, followed by what to analyze.
 ;; - :ignore, followed by what to ignore.
 (declaim (declaration analyze))
@@ -138,7 +137,7 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
   (declare (ignore args))
   ;; Always analyze with a CONTROLLER-CODE-ANALYZER first
   (analyze-file (make-instance 'controller-code-analyzer) file)
-  ;; Then use 
+  ;; Then use
   (when *code-analyzers-enabled*
     (dolist (analyzer *code-analyzers*)
       (when (and (analyzer-enabled-p analyzer)
@@ -235,16 +234,11 @@ Examples:
     (appendf (ignored-files analyzer) files)
     (appendf (ignored-definitions analyzer) definitions)))
 
-(defmethod process-declaration ((analyzer code-analyzer)
-                                (option (eql :enabled)) value)
-  (setf (analyzer-enabled-p analyzer)
-        (not (not (car value)))))
-
 ;; The ANALYZERS analyzer controls all analyzers (whether they are enabled or not, debugging, error handling, etc)
 ;; Syntax: (ANALYZE ANALYZERS option &rest args)
 ;; Options:
 ;; - :debug, follwed by a boolean. Affects all analyzers.
-;; - :enabled, follwed by a boolean. Affects all analyzers.
+;; - :enabled, follwed by a boolean, and an optional list of analyzers. Affects the passed analyzers, or all analyzers.
 
 (defclass controller-code-analyzer (code-analyzer)
   ()
@@ -253,7 +247,11 @@ Examples:
 (defmethod process-declaration ((analyzer controller-code-analyzer)
                                 (option (eql :enabled))
                                 value)
-  (setf *code-analyzers-enabled* (not (not (car value)))))
+  (destructuring-bind (enabled-p &rest analyzers) value
+    (if (null analyzers)
+        (setf *code-analyzers-enabled* (not (not enabled-p)))
+        (dolist (analyzer-name analyzers)
+          (setf (analyzer-enabled-p analyzer) (not (not enabled-p)))))))
 
 (defmethod process-declaration ((analyzer controller-code-analyzer)
                                 (option (eql :debug))
