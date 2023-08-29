@@ -272,7 +272,8 @@ Examples:
     (if (null analyzers)
         (setf *code-analyzers-enabled* (not (not enabled-p)))
         (dolist (analyzer-name analyzers)
-          (setf (analyzer-enabled-p analyzer) (not (not enabled-p)))))))
+          (let ((analyzer (find-code-analyzer analyzer-name)))
+            (setf (analyzer-enabled-p analyzer) (not (not enabled-p))))))))
 
 (defmethod process-declaration ((analyzer controller-code-analyzer)
                                 (option (eql :debug))

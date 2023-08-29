@@ -2,7 +2,9 @@
 (require :lisp-critic)
 
 (defpackage :critic-code-analyzer
-  (:use :cl))
+  (:use :cl)
+  (:export :critic
+           :critic-code-analyzer))
 
 (in-package :critic-code-analyzer)
 
@@ -30,5 +32,7 @@
       ;; TODO: the signaled condition does not contain a source code location.
       ;; Would that be possible to add?
       (warn 'code-analyzers:code-analyzer-warning :format-control critique))))
+
+(code-analyzers:register-code-analyzer 'critic (make-instance 'critic-code-analyzer))
 
 (provide :critic-code-analyzer)
