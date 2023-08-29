@@ -1,4 +1,5 @@
 (require :alexandria)
+(require :compiler-hooks)
 
 (defpackage :code-analyzers
   (:use :cl :alexandria)
@@ -106,7 +107,9 @@
 May want to use READ-LISP-FILE-DEFINITIONS."))
 
 (defgeneric process-declaration (analyzer option args)
-  (:documentation "Process ANALYZE declaration."))
+  (:documentation "Process ANALYZE declaration.")
+  (:method (analyzer option args)
+    (error "Invalid option: ~s for analyzer: ~a" option analyzer)))
 
 (declaim (ftype (function (symbol code-analyzer) t)
                 register-code-analyzer))
@@ -131,20 +134,21 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
    file
    (lambda (code)
      (unless (or (member file (ignored-files analyzer))
-                 (or (null *analyzed-package*)
-                     (member *analyzed-package* (ignored-packages analyzer)))
+                 (and *analyzed-package*
+                      (member *analyzed-package* (ignored-packages analyzer)))
                  (and (eql (car code) 'defun)
                       (member (cadr code) (ignored-definitions analyzer))))
        (analyze-definition analyzer code)))))
 
 (defun should-analyze-p (analyzer thing)
-  (etypecase thing
-    (package
-     (not (member (package-name thing) (ignored-packages analyzer))))
-    (pathname
-     (not (member thing (ignored-files analyzer))))
-    (symbol
-     (not (member thing (ignored-definitions analyzer))))))
+  (or (typep analyzer 'controller-code-analyzer)
+      (etypecase thing
+        (package
+         (not (member (package-name thing) (ignored-packages analyzer))))
+        (pathname
+         (not (member thing (ignored-files analyzer))))
+        (symbol
+         (not (member thing (ignored-definitions analyzer)))))))
 
 (defun find-code-analyzer (name &optional (error-p t))
   "Find a code analyzer by name."
@@ -249,6 +253,18 @@ Examples:
   ()
   (:documentation "Reads ANALYZE declarations to control CODE-ANALYZERs behaviour."))
 
+(defmethod analyze-definition ((analyzer controller-code-analyzer)
+                               code)
+  (when (and (listp code)
+             (eql (car code) 'declaim))
+    (let ((declarations (cdr code)))
+      (dolist (declaration declarations)
+        (when (and (listp declaration)
+                   (eql (car declaration) 'analyze))
+          (destructuring-bind (analyze analyzer-name option &rest args)
+              declaration
+            (process-declaration (find-code-analyzer analyzer-name) option args)))))))
+
 (defmethod process-declaration ((analyzer controller-code-analyzer)
                                 (option (eql :enabled))
                                 value)
@@ -263,17 +279,19 @@ Examples:
                                 value)
   (setf *debug-code-analyzers* (not (not (car value)))))
 
+(register-code-analyzer 'analyzers (make-instance 'controller-code-analyzer))
+
 ;; compiler hooks
 
 (defun analyze-file-hook (file &rest args)
   (declare (ignore args))
   ;; Always analyze with a CONTROLLER-CODE-ANALYZER first
-  (analyze-file (make-instance 'controller-code-analyzer) file)
+  (analyze-file (find-code-analyzer 'analyzers) (pathname file))
   ;; Then use
   (when *code-analyzers-enabled*
-    (dolist (analyzer *code-analyzers*)
+    (dolist (analyzer (alexandria:hash-table-values *code-analyzers*))
       (when (and (analyzer-enabled-p analyzer)
-                 (should-analyze-p analyzer file))
+                 (should-analyze-p analyzer (pathname file)))
         (analyze-file analyzer file)))))
 
 (push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
