@@ -12,7 +12,9 @@
            #:analyze-file
            #:analyze-definition
            #:read-lisp-file-definitions
-           #:register-code-analyzer)
+           #:register-code-analyzer
+           #:code-analyzer-warning
+           #:code-analyzer-error)
   (:documentation "Abstract interface for running code analyzers."))
 
 (in-package :code-analyzers)
@@ -33,6 +35,12 @@
   "The current package being analyzed.")
 
 (defvar *ignore-declarations-errors* nil)
+
+(define-condition code-analyzer-warning (alexandria:simple-style-warning)
+  ())
+
+(define-condition code-analyzer-error (simple-error)
+  ())
 
 (defclass code-analyzer ()
   ((enabled
