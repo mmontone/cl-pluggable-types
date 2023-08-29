@@ -28,8 +28,15 @@
 (defvar *analyzed-file* nil
   "Current file being analyzed.")
 
+(defvar *ignore-declarations-errors* nil)
+
 (defclass code-analyzer ()
-  ((ignored-packages
+  ((enabled
+    :initform t
+    :type boolean
+    :accessor analyzer-enabled-p
+    :documentation "Whether the analyzer is enabled or not.")
+   (ignored-packages
     :initform nil
     :type list
     :accessor ignored-packages
@@ -63,6 +70,10 @@
 
 ;; Use the ANALYZE declaration to control what gets analyzed.
 ;; Syntax: (ANALYZE analyzer-name option &rest args)
+;; Default options:
+;; - :enabled, followed by a boolean.
+;; - :analyze, followed by what to analyze.
+;; - :ignore, followed by what to ignore.
 (declaim (declaration analyze))
 
 (defun condition-message (condition)
@@ -125,9 +136,13 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
 
 (defun analyze-file-hook (file &rest args)
   (declare (ignore args))
+  ;; Always analyze with a CONTROLLER-CODE-ANALYZER first
+  (analyze-file (make-instance 'controller-code-analyzer) file)
+  ;; Then use 
   (when *code-analyzers-enabled*
     (dolist (analyzer *code-analyzers*)
-      (when (should-analyze-p analyzer file)
+      (when (and (analyzer-enabled-p analyzer)
+                 (should-analyze-p analyzer file))
         (analyze-file analyzer file)))))
 
 (declaim (ftype (function (pathname (or symbol function)) t)
@@ -142,31 +157,6 @@ May want to use READ-LISP-FILE-DEFINITIONS."))
         (funcall func code)))))
 
 (push 'analyze-file-hook compiler-hooks:*after-compile-file-hooks*)
-
-;; The declarations analyzer
-
-(defvar *ignore-declarations-errors* nil)
-
-(defclass declarations-controller-code-analyzer (code-analyzer)
-  ()
-  (:documentation "Reads ANALYZE declarations to control CODE-ANALYZERs behaviour."))
-
-(defmethod analyze-definition ((analyzer declarations-controller-code-analyzer) definition)
-  "Read ANALYZE declarations to control CODE-ANALYZERs behaviour."
-  
-  (when (and (listp definition)
-             (eql (car definition) 'declaim))
-    (dolist (declaration (rest definition))
-      (when (and (listp declaration)
-                 (eql (car declaration) 'analyze))
-        (destructuring-bind (analyze analyzer-name option &rest args)
-            declaration
-          (declare (ignore analyze))
-          (let ((code-analyzer (find-code-analyzer analyzer-name (not *ignore-declarations-errors*))))
-            (unless code-analyzer
-              (warn "Code analyzer not found: ~s" analyzer-name))
-            (when code-analyzer
-              (process-declaration code-analyzer option args))))))))
 
 (defun parse-analyzer-scope (scope)
   "Parse elements in SCOPE.
@@ -197,7 +187,7 @@ The elements in SCOPE can be:
          (push element definitions))))
     (values definitions files packages)))
 
-(defmethod process-declaration ((analyzer declarations-controller-code-analyzer)
+(defmethod process-declaration ((analyzer code-analyzer)
                                 (option (eql :analyze))
                                 scope)
   "Enable analysis for elements in SCOPE.
@@ -221,7 +211,7 @@ Examples:
     (appendf (files analyzer) files)
     (appendf (definitions analyzer) definitions)))
 
-(defmethod process-declaration ((analyzer declarations-controller-code-analyzer)
+(defmethod process-declaration ((analyzer code-analyzer)
                                 (option (eql :ignore))
                                 scope)
   "Disable analysis for elements in SCOPE.
@@ -245,5 +235,27 @@ Examples:
     (appendf (ignored-files analyzer) files)
     (appendf (ignored-definitions analyzer) definitions)))
 
-(register-code-analyzer 'declarations-controller
-                        (make-instance 'declarations-controller-code-analyzer))
+(defmethod process-declaration ((analyzer code-analyzer)
+                                (option (eql :enabled)) value)
+  (setf (analyzer-enabled-p analyzer)
+        (not (not (car value)))))
+
+;; The ANALYZERS analyzer controls all analyzers (whether they are enabled or not, debugging, error handling, etc)
+;; Syntax: (ANALYZE ANALYZERS option &rest args)
+;; Options:
+;; - :debug, follwed by a boolean. Affects all analyzers.
+;; - :enabled, follwed by a boolean. Affects all analyzers.
+
+(defclass controller-code-analyzer (code-analyzer)
+  ()
+  (:documentation "Reads ANALYZE declarations to control CODE-ANALYZERs behaviour."))
+
+(defmethod process-declaration ((analyzer controller-code-analyzer)
+                                (option (eql :enabled))
+                                value)
+  (setf *code-analyzers-enabled* (not (not (car value)))))
+
+(defmethod process-declaration ((analyzer controller-code-analyzer)
+                                (option (eql :debug))
+                                value)
+  (setf *debug-code-analyzers* (not (not (car value)))))
