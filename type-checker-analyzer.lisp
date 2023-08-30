@@ -3,7 +3,8 @@
 (defclass type-checker-analyzer (code-analyzers:code-analyzer)
   ((type-checker :initarg :type-checker
                  :accessor type-checker
-                 :type type-checker)))
+                 :initform *type-checker*
+                 :type (or null type-checker))))
 
 (defun load-type-declaration (expr file)
   "Read and load the type declaration, if EXPR is a type declaration."
@@ -21,24 +22,28 @@
          ((list (or 'type 'type*) type name)
           (push (cons name type) *vartypes*)))))))
 
-(defun type-check-definition (expr)
+(defun type-check-definition (expr analyzer)
   "Type check EXPR when appropiate."
-  (unless (member (package-name *package*) *ignore-packages*)
-    (trivia:match expr
-      ((cons 'eval-when (cons _ forms))
-       (mapcar #'type-check-definition forms))
-      ((list* 'defun fname _)
-       (unless (member fname *ignore-defs*)
-         (call-with-type-error-handler
-          (lambda () (check-form expr))))))))
+  (let ((type-checker (or (type-checker analyzer)
+                          *type-checker*)))
+    (when type-checker
+      (unless (member (package-name *package*) (code-analyzers:ignored-packages analyzer))
+        (trivia:match expr
+          ((cons 'eval-when (cons _ forms))
+           (mapcar #'type-check-definition forms analyzer))
+          ((list* 'defun fname _)
+           (unless (member fname (code-analyzers:ignored-definitions analyzer))
+             (call-with-type-error-handler
+              (lambda () (check-form expr :env nil :type-checker type-checker))))))))))
 
-(defun load-file-type-declarations (file &rest args)
-  (declare (ignore args))
-  (read-lisp-file-definitions (pathname file)
-                              (rcurry #'load-type-declaration (pathname file))))
+(defmethod code-analyzers:analyze-file ((analyzer type-checker-analyzer)
+                                        file)
+  ;; First load type declarations
+  (code-analyzers:read-lisp-file-definitions (pathname file)
+                              (rcurry #'load-type-declaration (pathname file)))
+  ;; Then check types
+  (code-analyzers:read-lisp-file-definitions (pathname file)
+                                             (rcurry #'type-check-definition analyzer)))
 
-(defun check-file-types (file &rest args)
-  (declare (ignore args))
-  (when (and *compile-checks*
-             (not (member file *ignore-files*)))
-    (read-lisp-file-definitions (pathname file) #'type-check-definition)))
+(code-analyzers:register-code-analyzer
+ 'type-checker (make-instance 'type-checker-analyzer))

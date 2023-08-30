@@ -15,7 +15,11 @@
            #:read-lisp-file-definitions
            #:register-code-analyzer
            #:code-analyzer-warning
-           #:code-analyzer-error)
+           #:code-analyzer-error
+           #:analyzer-enabled-p
+           #:ignored-packages
+           #:ignored-files
+           #:ignored-definitions)
   (:documentation "Abstract interface for running code analyzers."))
 
 (in-package :code-analyzers)

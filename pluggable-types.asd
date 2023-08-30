@@ -8,7 +8,9 @@
    (:file "pluggable-types")
    (:file "util")
    (:file "read")
-   (:file "compiler-hooks"))
+   (:file "compiler-hooks")
+   (:file "code-analyzers")
+   (:file "type-checker-analyzer"))
   :depends-on (:mutils
                (:require :mutils-utils)
                (:require :compiler-hooks)
