@@ -1,7 +1,13 @@
 (fiasco:define-test-package :pluggable-types/tests
-  (:use :cl :fiasco :pluggable-types :arrows :polymorphic-types))
+  (:use :cl :fiasco :pluggable-types :arrows :polymorphic-types)
+  (:export #:test-all-type-checkers))
 
 (in-package :pluggable-types/tests)
+
+(defun test-all-type-checkers ()
+  (dolist (type-checker-class (c2mop:class-direct-subclasses (find-class 'pluggable-types::type-checker)))
+    (let ((pluggable-types::*type-checker* (make-instance (class-name type-checker-class ))))
+      (fiasco:run-package-tests :package (find-package :pluggable-types/tests)))))
 
 (defmacro check-is-equalp (form type)
   `(is (equalp (check-form ',form) ',type)))
